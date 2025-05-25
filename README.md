@@ -1,0 +1,1 @@
+# paysend_macro_manager

@@ -10,23 +10,17 @@ from dateutil.relativedelta import relativedelta
 from tkinter import font
 import json
 
-# Funkcija za proveru i kreiranje datoteke ako ne postoji
 def load_macros(filename='macros.json'):
     if not os.path.exists(filename):
         with open(filename, 'w', encoding='utf-8') as file:
-            json.dump({}, file)  # Kreiraj praznu JSON datoteku
+            json.dump({}, file) 
     with open(filename, 'r', encoding='utf-8') as file:
         return json.load(file)
 
-# Učitaj makroe
 macros = load_macros()
 
 def callback(sv):
     searchMacros(sv.get())
-
-def clear_macro_frame():
-    for widget in macro_frame.winfo_children():
-        widget.destroy()
 
 def is_phone_number(term):
     pattern = re.compile(r'[+\d()\-./\s]{7,}')
@@ -36,7 +30,7 @@ def format_phone_number(term):
     return ''.join(filter(str.isdigit, term))
 
 def searchMacros(term):
-    clear_macro_frame()
+    reset_macro_frame()
 
     if term and len(term) > 1:
         if is_phone_number(term):
@@ -80,20 +74,35 @@ def searchMacros(term):
                         edit_button.pack(side=RIGHT, padx=10, pady=10)
                     
                     row += 1
+    elif len(term) < 1:
+        reset_macro_frame()
+        window.update_idletasks()  
+        window.geometry('')
+        
+    window.update_idletasks()  
+    window.geometry('')
 
 def copy_text(text):
     pyperclip.copy(text)
     search.delete(0, END)
-    searchMacros("help")
-    search.delete(0, END)
-    window.after(1, clear_macro_frame)
+    reset_macro_frame()
+    window.update_idletasks()
+    window.geometry('')
 
 def copy_macro(macro):
     pyperclip.copy(macros[macro])
     search.delete(0, END)
-    searchMacros("help")
-    window.after(2, lambda: search.delete(0, END))
-    window.after(2, clear_macro_frame)
+    reset_macro_frame()
+    window.update_idletasks()
+    window.geometry('')
+    
+def reset_macro_frame():
+    global macro_frame
+    if macro_frame is not None:
+        macro_frame.destroy()
+
+    macro_frame = Frame(window)
+    macro_frame.grid(row=1, column=0, sticky="ew")
     
 def confirm_delete(macro):
     answer = messagebox.askyesno("Confirm to delete",f"Are you sure you want to delete macro:\n\n{macro}?")
@@ -227,9 +236,9 @@ def edit_macro(macro):
         pyperclip.copy(updated_text)
         edit_window.destroy()
         search.delete(0, END)
-        searchMacros("help")
-        search.delete(0, END)
-        window.after(1, clear_macro_frame)
+        reset_macro_frame()
+        window.update_idletasks()
+        window.geometry('')
 
     done_button = Button(right_frame, text="Done", command=apply_changes)
     done_button.grid(row=row, columnspan=2, pady=10)
@@ -273,7 +282,6 @@ def format_date(date_str):
         suffix = ["st", "nd", "rd"][day % 10 - 1]
     return f"{day}{suffix} of {date.strftime('%B %Y')}"
 
-# Funkcija za dodavanje novog makroa
 def add_macro():
     add_window = Toplevel(window)
     add_window.title("Add New Macro")
@@ -298,8 +306,9 @@ def add_macro():
                 json.dump(macros, file, ensure_ascii=False, indent=4)
             add_window.destroy()
             search.delete(0, END)
-            searchMacros("help")
-            window.after(1, clear_macro_frame)
+            reset_macro_frame()
+            window.update_idletasks()
+            window.geometry('')
 
     save_button = Button(add_window, text="Save", command=save_macro)
     save_button.grid(row=2, columnspan=2, pady=10)
@@ -340,6 +349,7 @@ search.grid(row=0, column=0)
 
 macro_frame = Frame(window)
 macro_frame.grid(row=1, column=0)
+macro_frame.grid_propagate(True)
 
 right_click_menu = Menu(window,tearoff=0)
 right_click_menu.add_command(label="View  👁️",command=lambda:view_macro(selected_macro))
@@ -349,11 +359,15 @@ right_click_menu.add_separator()
 right_click_menu.add_command(label="Delete ⛔",command=lambda:confirm_delete(selected_macro))
 
 
-# Dugme "+" u donjem desnom kutu
-plus_button = Button(window, text="+", font=("Arial", 11), width=2, height=1, command=add_macro)
-plus_button.grid(row=2, column=1, sticky="se", padx=1, pady=1)
+button_frame = Frame(window)
+button_frame.grid(row=2,column=0, sticky='ew')
+button_frame.grid_columnconfigure(0, weight=1)
+button_frame.grid_propagate(True)
 
-delete_button = Button(window,text="del",font=("Arial",11),width=2,height=1,fg='grey',command=delete_mode_change)
-delete_button.grid(row=2,column=0,sticky="se",padx=1,pady=1)
+plus_button = Button(button_frame, text="+", font=("Arial", 11), width=2, height=1, command=add_macro)
+plus_button.grid(row=1, column=1, sticky="se", padx=1, pady=1)
+
+delete_button = Button(button_frame,text="del",font=("Arial",11),width=2,height=1,fg='grey',command=delete_mode_change)
+delete_button.grid(row=1,column=0,sticky="se",padx=1,pady=1)
 
 window.mainloop()

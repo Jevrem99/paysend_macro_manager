@@ -5,6 +5,7 @@ from PIL import Image, ImageTk
 import pyperclip
 from tkcalendar import DateEntry
 from datetime import datetime
+from datetime import timedelta
 from tkinter import messagebox
 from dateutil.relativedelta import relativedelta
 from tkinter import font
@@ -55,7 +56,8 @@ def searchMacros(term):
                     
                     action = confirm_delete if delete_mode else copy_macro
                     
-                    macro_frame.bind("<Button-1>",lambda event,m=macro:action(m))
+                    macro_frame_inner.bind("<Button-1>",lambda event,m=macro:action(m))
+                    macro_frame_inner.bind("<Button-3>",lambda event,m=macro:do_popup(event,m))
                     
                     label = Label(macro_frame_inner, width=30, text=macro, bg='lightgrey', anchor="w", justify=LEFT,fg=tileColor)
                     label.pack(side=LEFT, padx=10, pady=10)
@@ -194,11 +196,11 @@ def edit_macro(macro):
     edit_window = Toplevel(window)
     edit_window.title(f"Edit {macro}")
     edit_window.minsize(600, 400)
-    edit_window.wm_iconphoto(False, ImageTk.PhotoImage(Image.open('psicon.png')))
+    edit_window.wm_iconphoto(False, ImageTk.PhotoImage(Image.open('assets/psicon.png')))
 
     macro_text = macros[macro]
 
-    placeholders = re.findall(r'XXXXXXX|\[AMOUNT\]|\[DATE\]|\[SENT\]|\[REST\]|\[COUNTRY\]', macro_text)
+    placeholders = re.findall(r'XXXXXXX|\[AMOUNT\]|\[DATE\]|\[SENT\]|\[REST\]|\[COUNTRY\]|\[DATE1\]|\[DATE2\]', macro_text)
     unique_placeholders = list(set(placeholders))
     entry_vars = {ph: StringVar() for ph in unique_placeholders}
     
@@ -213,20 +215,25 @@ def edit_macro(macro):
     right_frame = Frame(edit_window)
     right_frame.pack(side=RIGHT, fill=Y)
 
-    ordered_placeholders = ['XXXXXXX', '[AMOUNT]', '[SENT]', '[DATE]', '[COUNTRY]']
+    ordered_placeholders = ['XXXXXXX', '[AMOUNT]', '[SENT]', '[DATE]', '[COUNTRY]','[DATE1]','[DATE2]']
     row = 0
     for placeholder in ordered_placeholders:
         if placeholder in unique_placeholders:
             label = Label(right_frame, text=placeholder)
             label.grid(row=row, column=0, padx=5, pady=5)
-            if placeholder == '[DATE]':
+            if placeholder == '[DATE]' or placeholder == '[DATE1]':
                 entry = DateEntry(right_frame, textvariable=entry_vars[placeholder], date_pattern='dd/MM/yyyy')
+            elif placeholder == '[DATE2]':
+                entry = DateEntry(right_frame, textvariable=entry_vars[placeholder], date_pattern='dd/MM/yyyy')
+                bd_button = Button(right_frame,text='3BD',command=lambda:add_3_bd_days())
+                bd_button.grid(row=row+1,column=1,padx=5,pady=5)
             else:
                 entry = Entry(right_frame, textvariable=entry_vars[placeholder])
             entry.grid(row=row, column=1, padx=5, pady=5)
             entry.bind('<KeyRelease>', lambda e, ph=placeholder: update_macro(text, macro_text, entry_vars))
-            if placeholder == '[DATE]':
+            if placeholder in ['[DATE]','[DATE1]','[DATE2]']:
                 entry.bind('<<DateEntrySelected>>', lambda e, ph=placeholder: update_macro(text, macro_text, entry_vars))
+
             row += 1
 
     def apply_changes():
@@ -239,9 +246,25 @@ def edit_macro(macro):
         reset_macro_frame()
         window.update_idletasks()
         window.geometry('')
+    
+    def add_3_bd_days():
+        
+        date1 = entry_vars.get('[DATE1]')
+        if date1:
+            day = datetime.strptime(entry_vars['[DATE1]'].get(),'%d/%m/%Y')
+        else:
+            day = datetime.strptime(entry_vars['[DATE]'].get(),'%d/%m/%Y')
+        i = 0
+        while i < 3:
+            day = day + timedelta(1)
+            if(day.weekday() not in [5,6]):
+                i+=1
+        day = datetime.strftime(day,"%d/%m/%Y")
+        entry_vars['[DATE2]'].set(day)
+        update_macro(text, macro_text, entry_vars)
 
     done_button = Button(right_frame, text="Done", command=apply_changes)
-    done_button.grid(row=row, columnspan=2, pady=10)
+    done_button.grid(row=row+2, columnspan=2, pady=10)
 
 def update_macro(text_widget, macro_text, entry_vars):
     updated_text = macro_text
@@ -253,7 +276,7 @@ def update_macro(text_widget, macro_text, entry_vars):
     text_widget.config(state=DISABLED)
 
 def format_placeholder_value(placeholder, value, entry_vars):
-    if placeholder == '[DATE]' and value:
+    if placeholder in ['[DATE]','[DATE1]','[DATE2]']  and value:
         return format_date(value)
     elif placeholder == '[REST]':
         try:
@@ -338,7 +361,7 @@ window.title("Paysend macro manager")
 window.minsize(274,50)
 window.attributes("-topmost", True)
 
-window.wm_iconphoto(False, ImageTk.PhotoImage(Image.open('assets/psicon.png')))
+window.wm_iconphoto(False, ImageTk.PhotoImage(Image.open("assets/psicon.png")))
 
 delete_mode = 0
 

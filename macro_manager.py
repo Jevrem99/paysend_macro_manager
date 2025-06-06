@@ -8,7 +8,8 @@ from datetime import datetime
 from datetime import timedelta
 from tkinter import messagebox
 from dateutil.relativedelta import relativedelta
-from tkinter import font
+from tkinter import filedialog
+import shutil
 import json
 
 def load_macros(filename='macros.json'):
@@ -157,8 +158,6 @@ def view_macro(macro):
             searchMacros(searchTerm.get())
             
         text.config(state=state)
-
-        
     
     edit_button = Button(right_frame,text='Edit',font=("Arial bold",10),command=izmeni)
     edit_button.pack(side=BOTTOM,anchor='se', padx=10, pady=10)
@@ -193,10 +192,26 @@ def right_click_edit(macro):
     done_button.pack(side=BOTTOM,anchor='se', padx=10, pady=10)
 
 def edit_macro(macro):
+    
+    global edit_window_ref
+    
+    if edit_window_ref is not None and edit_window_ref.winfo_exists():
+        edit_window_ref.lift()
+        return
+    
+    def on_close():
+        global edit_window_ref
+        edit_window_ref = None
+        edit_window.destroy()
+    
     edit_window = Toplevel(window)
     edit_window.title(f"Edit {macro}")
     edit_window.minsize(600, 400)
     edit_window.wm_iconphoto(False, ImageTk.PhotoImage(Image.open('assets/psicon.png')))
+    
+    edit_window_ref = edit_window
+    
+    edit_window.protocol("WM_DELETE_WINDOW",on_close)
 
     macro_text = macros[macro]
 
@@ -305,10 +320,73 @@ def format_date(date_str):
         suffix = ["st", "nd", "rd"][day % 10 - 1]
     return f"{day}{suffix} of {date.strftime('%B %Y')}"
 
+def import_macros():
+    file_path = filedialog.askopenfilename(title='Import macro file',filetypes=[("JSON file",".json")])
+    
+    if file_path == '':
+        return
+    
+    with open(file_path,'r',encoding='utf-8') as new_file:
+        try:
+            new_macros = json.load(new_file)
+        except ValueError:
+            messagebox.showerror("Error","Import failed")
+            return
+        
+        if new_macros == {}:
+            messagebox.showerror("Error","Imported file is empty")
+            return
+    
+    for key,value in new_macros.items():
+        if key not in macros and value != "":
+            macros.update({key:value})
+    with open("macros.json",'w',encoding='utf-8') as file:
+        json.dump(macros,file,ensure_ascii=False,indent=4)
+
+def export_macros():
+    file_path = filedialog.asksaveasfilename(defaultextension='.json',filetypes=[("JSON file",".json")])
+    
+    if file_path:
+        with open(file_path,'w',encoding="utf-8") as file:
+            json.dump(macros,file,ensure_ascii=False,indent=4)
+
+def create_backup():
+    
+    folder = "backup"
+    filepath = os.path.join(folder,"macros_backup.json")
+    
+    if not os.path.exists(filepath):
+        os.makedirs(folder)
+        with open(filepath,'w',encoding='utf-8') as backup:
+            json.dump(macros,backup,ensure_ascii=False,indent=4)
+            messagebox.showinfo("Backup","Backup successfull created")
+    elif messagebox.askyesno("Confirm to delete","Current backup will be deleted. Are you sure you want to continue?"):
+        shutil.rmtree(folder)
+        create_backup()
+
+add_window_ref = None
+edit_window_ref = None
+settings_window_ref = None
+
 def add_macro():
+    
+    global add_window_ref
+    
+    if add_window_ref is not None and add_window_ref.winfo_exists():
+        add_window_ref.lift()
+        return
+    
     add_window = Toplevel(window)
     add_window.title("Add New Macro")
     add_window.minsize(600, 200)
+    add_window_ref = add_window
+    
+    def on_close():
+        global add_window_ref
+        add_window_ref = None
+        add_window.destroy()
+        
+    add_window.protocol("WM_DELETE_WINDOW", on_close)
 
     macro_name_label = Label(add_window, text="Macro Name:")
     macro_name_label.grid(row=0, column=0, padx=10, pady=10)
@@ -355,6 +433,35 @@ def do_popup(event,macro):
     finally:
         right_click_menu.grab_release()
 
+def open_settings_page():
+    
+    global settings_window_ref
+    
+    if settings_window_ref is not None and settings_window_ref.winfo_exists():
+        settings_window_ref.lift()
+        return
+    
+    settings_window = Toplevel(window)
+    settings_window.title("Settings")
+    settings_window.minsize(200, 100)
+    settings_window.wm_iconphoto(False, ImageTk.PhotoImage(Image.open('assets/psicon.png')))
+    
+    settings_window_ref = settings_window
+    
+    def on_close():
+        global settings_window_ref
+        settings_window_ref = None
+        settings_window.destroy()
+        
+    settings_window.protocol("WM_DELETE_WINDOW",on_close)
+
+    import_button = Button(settings_window,text="Import macros 📥",font=("Arial",11),width=13,height=1,command=import_macros)
+    import_button.pack(side='top',anchor=CENTER,pady=10)
+    export_button = Button(settings_window,text="Export macros 📤",font=("Arial",11),width=13,height=1, command=export_macros)
+    export_button.pack(side='top',anchor=CENTER,pady=1)
+    backup_button = Button(settings_window,text="Create backup ☁️",font=("Arial",11),width=13,height=1, command=create_backup)
+    backup_button.pack(side='top',anchor=CENTER,pady=10)
+    
 
 window = Tk()
 window.title("Paysend macro manager")
@@ -388,9 +495,12 @@ button_frame.grid_columnconfigure(0, weight=1)
 button_frame.grid_propagate(True)
 
 plus_button = Button(button_frame, text="+", font=("Arial", 11), width=2, height=1, command=add_macro)
-plus_button.grid(row=1, column=1, sticky="se", padx=1, pady=1)
+plus_button.grid(row=1, column=2, sticky="se", padx=1, pady=1)
 
 delete_button = Button(button_frame,text="del",font=("Arial",11),width=2,height=1,fg='grey',command=delete_mode_change)
-delete_button.grid(row=1,column=0,sticky="se",padx=1,pady=1)
+delete_button.grid(row=1,column=1,sticky="se",padx=1,pady=1)
+
+settings_button = Button(button_frame,text="⚙️",font=("Arial",11),width=2,height=1,command=open_settings_page)
+settings_button.grid(row=1,column=0,sticky="se",padx=1,pady=1)
 
 window.mainloop()

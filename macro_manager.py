@@ -3,6 +3,8 @@ import re
 from tkinter import *
 from PIL import Image, ImageTk
 import pyperclip
+import threading
+import time
 from tkcalendar import DateEntry
 from datetime import datetime
 from datetime import timedelta
@@ -123,6 +125,7 @@ def delete_macro(macro):
     
 def view_macro(macro):
     view_window = Toplevel(window)
+    view_window.attributes("-topmost",True)
     view_window.title(macro)
     view_window.minsize(300, 200)
     view_window.wm_iconphoto(False, ImageTk.PhotoImage(Image.open('assets/psicon.png')))
@@ -205,6 +208,7 @@ def edit_macro(macro):
         edit_window.destroy()
     
     edit_window = Toplevel(window)
+    edit_window.attributes("-topmost",True)
     edit_window.title(f"Edit {macro}")
     edit_window.minsize(600, 400)
     edit_window.wm_iconphoto(False, ImageTk.PhotoImage(Image.open('assets/psicon.png')))
@@ -342,6 +346,7 @@ def import_macros():
             macros.update({key:value})
     with open("macros.json",'w',encoding='utf-8') as file:
         json.dump(macros,file,ensure_ascii=False,indent=4)
+    settings_window_ref.destroy()
 
 def export_macros():
     file_path = filedialog.asksaveasfilename(defaultextension='.json',filetypes=[("JSON file",".json")])
@@ -349,6 +354,7 @@ def export_macros():
     if file_path:
         with open(file_path,'w',encoding="utf-8") as file:
             json.dump(macros,file,ensure_ascii=False,indent=4)
+    settings_window_ref.destroy()
 
 def create_backup():
     
@@ -363,6 +369,7 @@ def create_backup():
     elif messagebox.askyesno("Confirm to delete","Current backup will be deleted. Are you sure you want to continue?"):
         shutil.rmtree(folder)
         create_backup()
+    settings_window_ref.destroy()
 
 add_window_ref = None
 edit_window_ref = None
@@ -417,12 +424,12 @@ def add_macro():
 def delete_mode_change():
     global delete_mode
     
-    if(delete_mode == 0):
+    if(not delete_mode):
         delete_button.config(fg='red')
-        delete_mode = 1
+        delete_mode = True
     else:
         delete_button.config(fg='grey')
-        delete_mode = 0
+        delete_mode = False
     searchMacros(searchTerm.get())
     
 def do_popup(event,macro):
@@ -439,9 +446,11 @@ def open_settings_page():
     
     if settings_window_ref is not None and settings_window_ref.winfo_exists():
         settings_window_ref.lift()
+        settings_window_ref.deiconify()
         return
     
     settings_window = Toplevel(window)
+    settings_window.attributes("-topmost",True)
     settings_window.title("Settings")
     settings_window.minsize(200, 100)
     settings_window.wm_iconphoto(False, ImageTk.PhotoImage(Image.open('assets/psicon.png')))
@@ -461,7 +470,42 @@ def open_settings_page():
     export_button.pack(side='top',anchor=CENTER,pady=1)
     backup_button = Button(settings_window,text="Create backup ☁️",font=("Arial",11),width=13,height=1, command=create_backup)
     backup_button.pack(side='top',anchor=CENTER,pady=10)
+
+def monitor_clipboard():
     
+    global copied_items,stop_event,clipboard_listener_thread, last_clipboard_copy
+    
+    source_clipboard = ""
+    
+    while not stop_event.is_set():
+        current = pyperclip.paste()
+        
+        if current != last_clipboard_copy and current.strip() != '' and current != source_clipboard:
+            last_clipboard_copy = current
+            copied_items.append(current)
+            print(f"Dodato {current}")
+            combined = ', '.join(copied_items)
+            source_clipboard = combined
+            pyperclip.copy(combined)
+        time.sleep(0.1)
+        
+def multi_copy():
+    
+    global multi_copy_mode,copy_icon,copy_icon_active,copied_items,copy_button,clipboard_listener_thread,stop_event
+    
+    multi_copy_mode = not multi_copy_mode
+    
+    if multi_copy_mode:
+        copy_button.config(image = copy_icon_active)
+        pyperclip.copy("")
+        copied_items = []
+        stop_event.clear()
+        clipboard_listener_thread = threading.Thread(target=monitor_clipboard,daemon=True)
+        clipboard_listener_thread.start()
+    else:
+        copy_button.config(image = copy_icon)
+        stop_event.set()
+        clipboard_listener_thread.join()
 
 window = Tk()
 window.title("Paysend macro manager")
@@ -470,7 +514,12 @@ window.attributes("-topmost", True)
 
 window.wm_iconphoto(False, ImageTk.PhotoImage(Image.open("assets/psicon.png")))
 
-delete_mode = 0
+delete_mode = False
+multi_copy_mode = False
+copied_items = []
+stop_event = threading.Event()
+clipboard_listener_thread = None
+last_clipboard_copy = ""
 
 searchTerm = StringVar()
 searchTerm.trace("w", lambda name, index, mode, sv=searchTerm: callback(sv))
@@ -495,12 +544,17 @@ button_frame.grid_columnconfigure(0, weight=1)
 button_frame.grid_propagate(True)
 
 plus_button = Button(button_frame, text="+", font=("Arial", 11), width=2, height=1, command=add_macro)
-plus_button.grid(row=1, column=2, sticky="se", padx=1, pady=1)
+plus_button.grid(row=1, column=3, sticky="se", padx=1, pady=1)
 
 delete_button = Button(button_frame,text="del",font=("Arial",11),width=2,height=1,fg='grey',command=delete_mode_change)
-delete_button.grid(row=1,column=1,sticky="se",padx=1,pady=1)
+delete_button.grid(row=1,column=2,sticky="se",padx=1,pady=1)
 
 settings_button = Button(button_frame,text="⚙️",font=("Arial",11),width=2,height=1,command=open_settings_page)
-settings_button.grid(row=1,column=0,sticky="se",padx=1,pady=1)
+settings_button.grid(row=1,column=1,sticky="se",padx=1,pady=1)
+
+copy_icon= PhotoImage(file='assets/copy2.png')
+copy_icon_active = PhotoImage(file='assets/copy2_active.png')
+copy_button = Button(button_frame, text="", image=copy_icon,command=multi_copy)
+copy_button.grid(row=1,column=0,sticky="se",padx=1,pady=1)
 
 window.mainloop()

@@ -14,14 +14,14 @@ from tkinter import filedialog
 import shutil
 import json
 
+#------------------------UTILS----------------------------#
+
 def load_macros(filename='macros.json'):
     if not os.path.exists(filename):
         with open(filename, 'w', encoding='utf-8') as file:
             json.dump({}, file) 
     with open(filename, 'r', encoding='utf-8') as file:
         return json.load(file)
-
-macros = load_macros()
 
 def callback(sv):
     searchMacros(sv.get())
@@ -32,6 +32,44 @@ def is_phone_number(term):
 
 def format_phone_number(term):
     return ''.join(filter(str.isdigit, term))
+
+def extract_number(value):
+    match = re.search(r'[\d,]+(?:\.\d+)?', value)
+    return float(match.group().replace(',', '')) if match else 0
+
+def extract_currency(value):
+    match = re.search(r'[^\d,]+$', value)
+    return match.group().strip() if match else ''
+
+def format_date(date_str):
+    date = datetime.strptime(date_str, '%d/%m/%Y')
+    day = date.day
+    if 4 <= day <= 20 or 24 <= day <= 30:
+        suffix = "th"
+    else:
+        suffix = ["st", "nd", "rd"][day % 10 - 1]
+    return f"{day}{suffix} of {date.strftime('%B %Y')}"
+
+def is_transaction_number(term):
+    pattern = re.compile(r'1[0-9]{8}00')
+    return bool(pattern.match(term))
+
+#--------------------------SEARCH--------------------------------------#
+
+def copy_text(text):
+    pyperclip.copy(text)
+    search.delete(0, END)
+    reset_macro_frame()
+    window.update_idletasks()
+    window.geometry('')
+
+def copy_macro(macro):
+    pyperclip.copy(macros[macro])
+    search.delete(0, END)
+    reset_macro_frame()
+    window.update_idletasks()
+    window.geometry('')
+
 
 def searchMacros(term):
     reset_macro_frame()
@@ -86,20 +124,6 @@ def searchMacros(term):
         
     window.update_idletasks()  
     window.geometry('')
-
-def copy_text(text):
-    pyperclip.copy(text)
-    search.delete(0, END)
-    reset_macro_frame()
-    window.update_idletasks()
-    window.geometry('')
-
-def copy_macro(macro):
-    pyperclip.copy(macros[macro])
-    search.delete(0, END)
-    reset_macro_frame()
-    window.update_idletasks()
-    window.geometry('')
     
 def reset_macro_frame():
     global macro_frame
@@ -108,7 +132,55 @@ def reset_macro_frame():
 
     macro_frame = Frame(window)
     macro_frame.grid(row=1, column=0, sticky="ew")
+
+#--------------------------CRUD------------------------------------#
+
+def add_macro():
     
+    global add_window_ref
+    
+    if add_window_ref is not None and add_window_ref.winfo_exists():
+        add_window_ref.lift()
+        return
+    
+    add_window = Toplevel(window)
+    add_window.title("Add New Macro")
+    add_window.minsize(600, 200)
+    add_window_ref = add_window
+    
+    def on_close():
+        global add_window_ref
+        add_window_ref = None
+        add_window.destroy()
+        
+    add_window.protocol("WM_DELETE_WINDOW", on_close)
+
+    macro_name_label = Label(add_window, text="Macro Name:")
+    macro_name_label.grid(row=0, column=0, padx=10, pady=10)
+    macro_name_entry = Entry(add_window)
+    macro_name_entry.grid(row=0, column=1, padx=10, pady=10)
+
+    macro_text_label = Label(add_window, text="Macro Text:")
+    macro_text_label.grid(row=1, column=0, padx=10, pady=10)
+    macro_text_entry = Text(add_window, wrap=WORD, height=10)
+    macro_text_entry.grid(row=1, column=1, padx=10, pady=10)
+
+    def save_macro():
+        macro_name = macro_name_entry.get()
+        macro_text = macro_text_entry.get("1.0", "end-1c")
+        if macro_name and macro_text:
+            macros[macro_name] = macro_text
+            with open('macros.json', 'w', encoding='utf-8') as file:
+                json.dump(macros, file, ensure_ascii=False, indent=4)
+            add_window.destroy()
+            search.delete(0, END)
+            reset_macro_frame()
+            window.update_idletasks()
+            window.geometry('')
+
+    save_button = Button(add_window, text="Save", command=save_macro)
+    save_button.grid(row=2, columnspan=2, pady=10)
+
 def confirm_delete(macro):
     answer = messagebox.askyesno("Confirm to delete",f"Are you sure you want to delete macro:\n\n{macro}?")
     if answer:
@@ -122,6 +194,17 @@ def delete_macro(macro):
         with open('macros.json','w',encoding='utf-8') as file:
             json.dump(macros,file,indent=4,ensure_ascii=False)
         searchMacros(searchTerm.get())
+        
+def delete_mode_change():
+    global delete_mode
+    
+    if(not delete_mode):
+        delete_button.config(fg='red')
+        delete_mode = True
+    else:
+        delete_button.config(fg='grey')
+        delete_mode = False
+    searchMacros(searchTerm.get())
     
 def view_macro(macro):
     view_window = Toplevel(window)
@@ -164,7 +247,15 @@ def view_macro(macro):
     
     edit_button = Button(right_frame,text='Edit',font=("Arial bold",10),command=izmeni)
     edit_button.pack(side=BOTTOM,anchor='se', padx=10, pady=10)
-    
+
+def do_popup(event,macro):
+    global selected_macro
+    selected_macro = macro
+    try:
+        right_click_menu.tk_popup(event.x_root, event.y_root)
+    finally:
+        right_click_menu.grab_release()
+
 def right_click_edit(macro):
     edit_window = Toplevel(window)
     edit_window.title(macro)
@@ -190,7 +281,6 @@ def right_click_edit(macro):
             searchMacros(searchTerm.get())
         edit_window.destroy()
 
-        
     done_button = Button(right_frame,text='Done',font=("Arial bold",10),command=done)
     done_button.pack(side=BOTTOM,anchor='se', padx=10, pady=10)
 
@@ -307,22 +397,38 @@ def format_placeholder_value(placeholder, value, entry_vars):
             return '[INVALID]'
     return value
 
-def extract_number(value):
-    match = re.search(r'[\d,]+(?:\.\d+)?', value)
-    return float(match.group().replace(',', '')) if match else 0
+#------------------------SETTINGS-------------------------#
 
-def extract_currency(value):
-    match = re.search(r'[^\d,]+$', value)
-    return match.group().strip() if match else ''
+def open_settings_page():
+    
+    global settings_window_ref
+    
+    if settings_window_ref is not None and settings_window_ref.winfo_exists():
+        settings_window_ref.lift()
+        settings_window_ref.deiconify()
+        return
+    
+    settings_window = Toplevel(window)
+    settings_window.attributes("-topmost",True)
+    settings_window.title("Settings")
+    settings_window.minsize(200, 100)
+    settings_window.wm_iconphoto(False, ImageTk.PhotoImage(Image.open('assets/psicon.png')))
+    
+    settings_window_ref = settings_window
+    
+    def on_close():
+        global settings_window_ref
+        settings_window_ref = None
+        settings_window.destroy()
+        
+    settings_window.protocol("WM_DELETE_WINDOW",on_close)
 
-def format_date(date_str):
-    date = datetime.strptime(date_str, '%d/%m/%Y')
-    day = date.day
-    if 4 <= day <= 20 or 24 <= day <= 30:
-        suffix = "th"
-    else:
-        suffix = ["st", "nd", "rd"][day % 10 - 1]
-    return f"{day}{suffix} of {date.strftime('%B %Y')}"
+    import_button = Button(settings_window,text="Import macros 📥",font=("Arial",11),width=13,height=1,command=import_macros)
+    import_button.pack(side='top',anchor=CENTER,pady=10)
+    export_button = Button(settings_window,text="Export macros 📤",font=("Arial",11),width=13,height=1, command=export_macros)
+    export_button.pack(side='top',anchor=CENTER,pady=1)
+    backup_button = Button(settings_window,text="Create backup ☁️",font=("Arial",11),width=13,height=1, command=create_backup)
+    backup_button.pack(side='top',anchor=CENTER,pady=10)
 
 def import_macros():
     file_path = filedialog.askopenfilename(title='Import macro file',filetypes=[("JSON file",".json")])
@@ -370,106 +476,8 @@ def create_backup():
         shutil.rmtree(folder)
         create_backup()
     settings_window_ref.destroy()
-
-add_window_ref = None
-edit_window_ref = None
-settings_window_ref = None
-
-def add_macro():
     
-    global add_window_ref
-    
-    if add_window_ref is not None and add_window_ref.winfo_exists():
-        add_window_ref.lift()
-        return
-    
-    add_window = Toplevel(window)
-    add_window.title("Add New Macro")
-    add_window.minsize(600, 200)
-    add_window_ref = add_window
-    
-    def on_close():
-        global add_window_ref
-        add_window_ref = None
-        add_window.destroy()
-        
-    add_window.protocol("WM_DELETE_WINDOW", on_close)
-
-    macro_name_label = Label(add_window, text="Macro Name:")
-    macro_name_label.grid(row=0, column=0, padx=10, pady=10)
-    macro_name_entry = Entry(add_window)
-    macro_name_entry.grid(row=0, column=1, padx=10, pady=10)
-
-    macro_text_label = Label(add_window, text="Macro Text:")
-    macro_text_label.grid(row=1, column=0, padx=10, pady=10)
-    macro_text_entry = Text(add_window, wrap=WORD, height=10)
-    macro_text_entry.grid(row=1, column=1, padx=10, pady=10)
-
-    def save_macro():
-        macro_name = macro_name_entry.get()
-        macro_text = macro_text_entry.get("1.0", "end-1c")
-        if macro_name and macro_text:
-            macros[macro_name] = macro_text
-            with open('macros.json', 'w', encoding='utf-8') as file:
-                json.dump(macros, file, ensure_ascii=False, indent=4)
-            add_window.destroy()
-            search.delete(0, END)
-            reset_macro_frame()
-            window.update_idletasks()
-            window.geometry('')
-
-    save_button = Button(add_window, text="Save", command=save_macro)
-    save_button.grid(row=2, columnspan=2, pady=10)
-
-def delete_mode_change():
-    global delete_mode
-    
-    if(not delete_mode):
-        delete_button.config(fg='red')
-        delete_mode = True
-    else:
-        delete_button.config(fg='grey')
-        delete_mode = False
-    searchMacros(searchTerm.get())
-    
-def do_popup(event,macro):
-    global selected_macro
-    selected_macro = macro
-    try:
-        right_click_menu.tk_popup(event.x_root, event.y_root)
-    finally:
-        right_click_menu.grab_release()
-
-def open_settings_page():
-    
-    global settings_window_ref
-    
-    if settings_window_ref is not None and settings_window_ref.winfo_exists():
-        settings_window_ref.lift()
-        settings_window_ref.deiconify()
-        return
-    
-    settings_window = Toplevel(window)
-    settings_window.attributes("-topmost",True)
-    settings_window.title("Settings")
-    settings_window.minsize(200, 100)
-    settings_window.wm_iconphoto(False, ImageTk.PhotoImage(Image.open('assets/psicon.png')))
-    
-    settings_window_ref = settings_window
-    
-    def on_close():
-        global settings_window_ref
-        settings_window_ref = None
-        settings_window.destroy()
-        
-    settings_window.protocol("WM_DELETE_WINDOW",on_close)
-
-    import_button = Button(settings_window,text="Import macros 📥",font=("Arial",11),width=13,height=1,command=import_macros)
-    import_button.pack(side='top',anchor=CENTER,pady=10)
-    export_button = Button(settings_window,text="Export macros 📤",font=("Arial",11),width=13,height=1, command=export_macros)
-    export_button.pack(side='top',anchor=CENTER,pady=1)
-    backup_button = Button(settings_window,text="Create backup ☁️",font=("Arial",11),width=13,height=1, command=create_backup)
-    backup_button.pack(side='top',anchor=CENTER,pady=10)
+#-----------------------THREADING---------------------#
 
 def monitor_clipboard():
     
@@ -483,8 +491,12 @@ def monitor_clipboard():
         if current != last_clipboard_copy and current.strip() != '' and current != source_clipboard:
             last_clipboard_copy = current
             copied_items.append(current)
-            print(f"Dodato {current}")
-            combined = ', '.join(copied_items)
+            
+            if is_transaction_number(current):
+                combined = ', '.join(copied_items)
+            else:
+                combined = '\n\n'.join(copied_items)
+                
             source_clipboard = combined
             pyperclip.copy(combined)
         time.sleep(0.1)
@@ -507,12 +519,20 @@ def multi_copy():
         stop_event.set()
         clipboard_listener_thread.join()
 
+#---------------------------MAIN---------------------------------#
+
 window = Tk()
 window.title("Paysend macro manager")
 window.minsize(274,50)
 window.attributes("-topmost", True)
 
 window.wm_iconphoto(False, ImageTk.PhotoImage(Image.open("assets/psicon.png")))
+
+macros = load_macros()
+
+add_window_ref = None
+edit_window_ref = None
+settings_window_ref = None
 
 delete_mode = False
 multi_copy_mode = False

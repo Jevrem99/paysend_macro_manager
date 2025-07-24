@@ -187,5 +187,8 @@
     "EXAMPLE2": "Transaction X\n\nTransaction XX\n\nTransaction XXX\n\nTransaction XXXX\n\nTransaction XXXXX\n\nTransaction XXXXXX\n\nTransaction XXXXXXX\n",
     "example3": "ajsdoijaosjdoida [FOO] jaosijdoasod akkakakak",
     "exp": "[AMOUNT]\n[SENT]\n[REST]\n[DATE]\nXXXXXXX",
-    "exp2": "Dear Customer,\n\nPlease note that transfers to [COUNTRY] are not available at the moment.\n\nYour transfer XXXXXXX made on the [DATE] is processed succesfully.\n\nYour current sending limit is [AMOUNT]. It's worth noting that you have already sent [SENT], which means that you can still send up to [REST].\n"
+    "exp2": "Dear Customer,\n\nPlease note that transfers to [COUNTRY] are not available at the moment.\n\nYour transfer XXXXXXX made on the [DATE] is processed succesfully.\n\nYour current sending limit is [AMOUNT]. It's worth noting that you have already sent [SENT], which means that you can still send up to [REST].\n",
+    "Example12": "This is an Example.\n\nTransaction XXXXXXX is over.\n\nDates are [DATE] and [DATE1] and country is [COUNTRY].\n\nTransaction XXX is not XXXXX",
+    "Novo": "OVO XXXXXXX i XXXXXXX je isto sto i XXXXXXX",
+    "Dodat":"Novi XXX je XXXXX isto"
 }

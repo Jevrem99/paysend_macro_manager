@@ -21,10 +21,8 @@ def load_macros(filename='macros.json'):
         with open(filename, 'w', encoding='utf-8') as file:
             json.dump({}, file) 
     with open(filename, 'r', encoding='utf-8') as file:
-        return json.load(file)
-
-def callback(sv):
-    searchMacros(sv.get())
+        data = json.load(file)
+        return {k: normalize_macro_text(v) for k, v in data.items()}
 
 def is_phone_number(term):
     pattern = re.compile(r'[+\d()\-./\s]{7,}')
@@ -53,6 +51,9 @@ def format_date(date_str):
 def is_transaction_number(term):
     pattern = re.compile(r'1[0-9]{8}00')
     return bool(pattern.match(term))
+
+def normalize_macro_text(text):
+    return re.sub(r'X{3,10}','XXXXXXX',text)
 
 #--------------------------SEARCH--------------------------------------#
 
@@ -178,7 +179,7 @@ def add_macro():
         macro_name = macro_name_entry.get()
         macro_text = macro_text_entry.get("1.0", "end-1c")
         if macro_name and macro_text:
-            macros[macro_name] = macro_text
+            macros[macro_name] = normalize_macro_text(macro_text)
             with open('macros.json', 'w', encoding='utf-8') as file:
                 json.dump(macros, file, ensure_ascii=False, indent=4)
             add_window.destroy()
@@ -284,7 +285,7 @@ def view_macro(macro):
     edit_button = Button(right_frame,text='Edit',font=("Arial bold",10),command=izmeni)
     edit_button.pack(side=BOTTOM,anchor='se', padx=10, pady=10)
     
-    if re.search(r'XXX+|\[AMOUNT\]|\[DATE\]|\[SENT\]|\[REST\]|\[COUNTRY\]|\[DATE1\]|\[DATE2\]', macros[macro]):
+    if re.search(r'XXXXXXX|\[AMOUNT\]|\[DATE\]|\[SENT\]|\[REST\]|\[COUNTRY\]|\[DATE1\]|\[DATE2\]', macros[macro]):
         info_icon = PhotoImage(file='assets/info.png')
         info_label = Label(right_frame, text="", image=info_icon)
         info_label.image = info_icon
@@ -362,22 +363,22 @@ def edit_macro(macro):
 
     macro_text = macros[macro]
 
-    placeholders = re.findall(r'XXX+|\[AMOUNT\]|\[DATE\]|\[SENT\]|\[REST\]|\[COUNTRY\]|\[DATE1\]|\[DATE2\]', macro_text)
+    placeholders = re.findall(r'XXXXXXX|\[AMOUNT\]|\[DATE\]|\[SENT\]|\[REST\]|\[COUNTRY\]|\[DATE1\]|\[DATE2\]', macro_text)
     unique_placeholders = list(set(placeholders))
     entry_vars = {ph: StringVar() for ph in unique_placeholders}
     
     left_frame = Frame(edit_window)
     left_frame.pack(side=LEFT, fill=BOTH, expand=True)
 
-    text = Text(left_frame, wrap=WORD)
-    text.insert(INSERT, macro_text)
-    text.config(state=DISABLED)
-    text.pack(expand=True, fill=BOTH)
+    text_area = Text(left_frame, wrap=WORD)
+    text_area.insert(INSERT, macro_text)
+    text_area.config(state=DISABLED)
+    text_area.pack(expand=True, fill=BOTH)
 
     right_frame = Frame(edit_window)
     right_frame.pack(side=RIGHT, fill=Y)
     
-    ordered_placeholders = ['XXXXXXX','[AMOUNT]', '[SENT]', '[DATE]', '[COUNTRY]','[DATE1]','[DATE2]'] #XXX+ needs to be matched
+    ordered_placeholders = ['XXXXXXX','[AMOUNT]', '[SENT]', '[DATE]', '[COUNTRY]','[DATE1]','[DATE2]']
     row = 0
     for placeholder in ordered_placeholders:
         if placeholder in unique_placeholders:
@@ -392,9 +393,9 @@ def edit_macro(macro):
             else:
                 entry = Entry(right_frame, textvariable=entry_vars[placeholder])
             entry.grid(row=row, column=1, padx=5, pady=5)
-            entry.bind('<KeyRelease>', lambda e, ph=placeholder: update_macro(text, macro_text, entry_vars))
+            entry.bind('<KeyRelease>', lambda e, ph=placeholder: update_macro(text_area, macro_text, entry_vars))
             if placeholder in ['[DATE]','[DATE1]','[DATE2]']:
-                entry.bind('<<DateEntrySelected>>', lambda e, ph=placeholder: update_macro(text, macro_text, entry_vars))
+                entry.bind('<<DateEntrySelected>>', lambda e, ph=placeholder: update_macro(text_area, macro_text, entry_vars))
 
             row += 1
 
@@ -423,7 +424,7 @@ def edit_macro(macro):
                 i+=1
         day = datetime.strftime(day,"%d/%m/%Y")
         entry_vars['[DATE2]'].set(day)
-        update_macro(text, macro_text, entry_vars)
+        update_macro(text_area, macro_text, entry_vars)
 
     done_button = Button(right_frame, text="Done", command=apply_changes)
     done_button.grid(row=row+2, columnspan=2, pady=10)
@@ -586,6 +587,7 @@ macros = load_macros()
 add_window_ref = None
 edit_window_ref = None
 settings_window_ref = None
+search_after_id = None
 
 delete_mode = False
 multi_copy_mode = False
@@ -595,8 +597,8 @@ clipboard_listener_thread = None
 last_clipboard_copy = ""
 
 searchTerm = StringVar()
-searchTerm.trace("w", lambda name, index, mode, sv=searchTerm: callback(sv))
 search = Entry(window, width=30, font=8, textvariable=searchTerm)
+search.bind('<KeyRelease>',lambda event: searchMacros(searchTerm.get()))
 search.grid(row=0, column=0)
 
 macro_frame = Frame(window)

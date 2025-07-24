@@ -110,7 +110,7 @@ def searchMacros(term):
                     view_button.image = view_icon
                     view_button.pack(side=RIGHT, padx=10, pady=10)
 
-                    if re.search(r'XXXXXXX|\[AMOUNT\]|\[DATE\]|\[SENT\]|\[REST\]|\[COUNTRY\]', macros[macro]):
+                    if re.search(r'XXX+|\[AMOUNT\]|\[DATE\]|\[SENT\]|\[REST\]|\[COUNTRY\]|\[DATE1\]|\[DATE2\]', macros[macro]):
                         edit_icon = PhotoImage(file='assets/edit.png')
                         edit_button = Button(macro_frame_inner, text="", image=edit_icon, compound=LEFT, command=lambda m=macro: edit_macro(m))
                         edit_button.image = edit_icon
@@ -144,6 +144,7 @@ def add_macro():
         return
     
     add_window = Toplevel(window)
+    add_window.attributes("-topmost",True)
     add_window.title("Add New Macro")
     add_window.minsize(600, 200)
     add_window_ref = add_window
@@ -164,6 +165,14 @@ def add_macro():
     macro_text_label.grid(row=1, column=0, padx=10, pady=10)
     macro_text_entry = Text(add_window, wrap=WORD, height=10)
     macro_text_entry.grid(row=1, column=1, padx=10, pady=10)
+    
+    info_icon = PhotoImage(file='assets/info.png')
+    info_label = Label(add_window, text="", image=info_icon)
+    info_label.image = info_icon
+    info_label.grid(row=2,column=0,padx=10,pady=10)
+    
+    info_label.bind("<Enter>",displayInfo)
+    info_label.bind("<Leave>",hideInfo)
 
     def save_macro():
         macro_name = macro_name_entry.get()
@@ -177,9 +186,36 @@ def add_macro():
             reset_macro_frame()
             window.update_idletasks()
             window.geometry('')
+            
+    
 
     save_button = Button(add_window, text="Save", command=save_macro)
     save_button.grid(row=2, columnspan=2, pady=10)
+
+infoWindow = None
+
+def displayInfo(event):
+    global infoWindow
+    
+    infoText = (
+        "Available placeholders:\n\n"
+        "• XXXXXXX, [COUNTRY]  — free text inputs\n"
+        "• [DATE]              — date picker\n"
+        "• [DATE1], [DATE2]    — date range (with 3BD option)\n"
+        "• [AMOUNT], [SENT]    — numeric inputs\n"
+        "• [REST]              — auto-calculated as [AMOUNT] - [SENT]\n\n"
+        "*Note: [REST] is automatically calculated and does not require input."
+    )
+    infoWindow = Toplevel(event.widget)
+    infoWindow.wm_overrideredirect(True)
+    infoWindow.wm_geometry(f"+{event.x_root+10}+{event.y_root+10}")
+    Label(infoWindow, text=infoText, bg="lightgrey", relief="solid",justify="left" ,borderwidth=1).pack()
+    
+def hideInfo(event):
+    global infoWindow
+    if infoWindow:
+        infoWindow.destroy()
+        infoWindow = None
 
 def confirm_delete(macro):
     answer = messagebox.askyesno("Confirm to delete",f"Are you sure you want to delete macro:\n\n{macro}?")
@@ -247,6 +283,15 @@ def view_macro(macro):
     
     edit_button = Button(right_frame,text='Edit',font=("Arial bold",10),command=izmeni)
     edit_button.pack(side=BOTTOM,anchor='se', padx=10, pady=10)
+    
+    if re.search(r'XXX+|\[AMOUNT\]|\[DATE\]|\[SENT\]|\[REST\]|\[COUNTRY\]|\[DATE1\]|\[DATE2\]', macros[macro]):
+        info_icon = PhotoImage(file='assets/info.png')
+        info_label = Label(right_frame, text="", image=info_icon)
+        info_label.image = info_icon
+        info_label.pack(side=BOTTOM,anchor='se',padx=15, pady=10)
+        
+        info_label.bind("<Enter>",displayInfo)
+        info_label.bind("<Leave>",hideInfo)
 
 def do_popup(event,macro):
     global selected_macro
@@ -283,6 +328,14 @@ def right_click_edit(macro):
 
     done_button = Button(right_frame,text='Done',font=("Arial bold",10),command=done)
     done_button.pack(side=BOTTOM,anchor='se', padx=10, pady=10)
+    
+    info_icon = PhotoImage(file='assets/info.png')
+    info_label = Label(right_frame, text="", image=info_icon)
+    info_label.image = info_icon
+    info_label.pack(side=BOTTOM,anchor='se',padx=18, pady=10)
+    
+    info_label.bind("<Enter>",displayInfo)
+    info_label.bind("<Leave>",hideInfo)
 
 def edit_macro(macro):
     
@@ -309,7 +362,7 @@ def edit_macro(macro):
 
     macro_text = macros[macro]
 
-    placeholders = re.findall(r'XXXXXXX|\[AMOUNT\]|\[DATE\]|\[SENT\]|\[REST\]|\[COUNTRY\]|\[DATE1\]|\[DATE2\]', macro_text)
+    placeholders = re.findall(r'XXX+|\[AMOUNT\]|\[DATE\]|\[SENT\]|\[REST\]|\[COUNTRY\]|\[DATE1\]|\[DATE2\]', macro_text)
     unique_placeholders = list(set(placeholders))
     entry_vars = {ph: StringVar() for ph in unique_placeholders}
     
@@ -323,8 +376,8 @@ def edit_macro(macro):
 
     right_frame = Frame(edit_window)
     right_frame.pack(side=RIGHT, fill=Y)
-
-    ordered_placeholders = ['XXXXXXX', '[AMOUNT]', '[SENT]', '[DATE]', '[COUNTRY]','[DATE1]','[DATE2]']
+    
+    ordered_placeholders = ['XXXXXXX','[AMOUNT]', '[SENT]', '[DATE]', '[COUNTRY]','[DATE1]','[DATE2]'] #XXX+ needs to be matched
     row = 0
     for placeholder in ordered_placeholders:
         if placeholder in unique_placeholders:

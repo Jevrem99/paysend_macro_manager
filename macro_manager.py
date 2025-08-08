@@ -11,10 +11,19 @@ from datetime import timedelta
 from tkinter import messagebox
 from dateutil.relativedelta import relativedelta
 from tkinter import filedialog
+from ttkwidgets.autocomplete import AutocompleteCombobox
+import keyboard
 import shutil
 import json
 
 #------------------------UTILS----------------------------#
+
+countries = ["Algeria", "Argentina", "Armenia", "Azerbaijan", "Bangladesh", "Belarus", 
+             "Belize", "Bhutan", "Bolivia,", "Burundi", "Cambodia", "Cameroon", "Chad", "China", "Ecuador", 
+             "El Salvador", "Ethiopia", "Georgia", "Guatemala", "Guinea", "Guyana", "Honduras", "Hong Kong", "India", 
+             "Indonesia", "Jamaica", "Japan", "Jordan", "Kenya", "Kuwait", "Lesotho", "Liberia", "Madagascar", "Malawi", "Malaysia", 
+             "Mauritania", "Mozambique", "Nepal", "Niger", "Nigeria", "Philippines", "Qatar", "Rwanda", "Saudi Arabia", "Senegal", 
+             "Singapore", "South Africa", "Sri Lanka", "Tajikistan", "Tanzania", "Thailand", "Tunisia", "Turkey", "Uganda", "Ukraine", "Uruguay", "Vietnam", "Zambia"]
 
 def load_macros(filename='macros.json'):
     if not os.path.exists(filename):
@@ -23,6 +32,14 @@ def load_macros(filename='macros.json'):
     with open(filename, 'r', encoding='utf-8') as file:
         data = json.load(file)
         return {k: normalize_macro_text(v) for k, v in data.items()}
+    
+def load_keyboard_macros(filename='config/keyboard_macros.json'):
+    if not os.path.exists(filename):
+        with open(filename, 'w', encoding='utf-8') as file:
+            json.dump({}, file) 
+    with open(filename, 'r', encoding='utf-8') as file:
+        data = json.load(file)
+        return data
 
 def is_phone_number(term):
     pattern = re.compile(r'[+\d()\-./\s]{7,}')
@@ -111,7 +128,7 @@ def searchMacros(term):
                     view_button.image = view_icon
                     view_button.pack(side=RIGHT, padx=10, pady=10)
 
-                    if re.search(r'XXX+|\[AMOUNT\]|\[DATE\]|\[SENT\]|\[REST\]|\[COUNTRY\]|\[DATE1\]|\[DATE2\]', macros[macro]):
+                    if re.search(r'XXXXXXX|\[AMOUNT\]|\[DATE\]|\[SENT\]|\[REST\]|\[COUNTRY\]|\[DATE1\]|\[DATE2\]', macros[macro]):
                         edit_icon = PhotoImage(file='assets/edit.png')
                         edit_button = Button(macro_frame_inner, text="", image=edit_icon, compound=LEFT, command=lambda m=macro: edit_macro(m))
                         edit_button.image = edit_icon
@@ -188,8 +205,6 @@ def add_macro():
             window.update_idletasks()
             window.geometry('')
             
-    
-
     save_button = Button(add_window, text="Save", command=save_macro)
     save_button.grid(row=2, columnspan=2, pady=10)
 
@@ -200,7 +215,8 @@ def displayInfo(event):
     
     infoText = (
         "Available placeholders:\n\n"
-        "• XXXXXXX, [COUNTRY]  — free text inputs\n"
+        "• XXXXXXX,            — free text inputs\n"
+        "• [COUNTRY]           — list of non-sending countries\n"
         "• [DATE]              — date picker\n"
         "• [DATE1], [DATE2]    — date range (with 3BD option)\n"
         "• [AMOUNT], [SENT]    — numeric inputs\n"
@@ -378,7 +394,7 @@ def edit_macro(macro):
     right_frame = Frame(edit_window)
     right_frame.pack(side=RIGHT, fill=Y)
     
-    ordered_placeholders = ['XXXXXXX','[AMOUNT]', '[SENT]', '[DATE]', '[COUNTRY]','[DATE1]','[DATE2]']
+    ordered_placeholders = ['XXXXXXX','[AMOUNT]', '[REST]', '[DATE]', '[COUNTRY]','[DATE1]','[DATE2]']
     row = 0
     for placeholder in ordered_placeholders:
         if placeholder in unique_placeholders:
@@ -390,10 +406,16 @@ def edit_macro(macro):
                 entry = DateEntry(right_frame, textvariable=entry_vars[placeholder], date_pattern='dd/MM/yyyy')
                 bd_button = Button(right_frame,text='3BD',command=lambda:add_3_bd_days())
                 bd_button.grid(row=row+1,column=1,padx=5,pady=5)
+            elif placeholder == '[COUNTRY]':
+                entry = AutocompleteCombobox(right_frame,completevalues=countries ,textvariable=entry_vars[placeholder])
+                entry.bind("<<ComboboxSelected>>", lambda e, ph=placeholder: update_macro(text_area, macro_text, entry_vars))
+                entry.bind('<FocusOut>', lambda e, ph=placeholder: update_macro(text_area, macro_text, entry_vars))
+                entry.bind('<Return>', lambda e, ph=placeholder: update_macro(text_area, macro_text, entry_vars))
             else:
                 entry = Entry(right_frame, textvariable=entry_vars[placeholder])
             entry.grid(row=row, column=1, padx=5, pady=5)
-            entry.bind('<KeyRelease>', lambda e, ph=placeholder: update_macro(text_area, macro_text, entry_vars))
+            if placeholder != '[COUNTRY]':
+                entry.bind('<KeyRelease>', lambda e, ph=placeholder: update_macro(text_area, macro_text, entry_vars))
             if placeholder in ['[DATE]','[DATE1]','[DATE2]']:
                 entry.bind('<<DateEntrySelected>>', lambda e, ph=placeholder: update_macro(text_area, macro_text, entry_vars))
 
@@ -441,10 +463,10 @@ def update_macro(text_widget, macro_text, entry_vars):
 def format_placeholder_value(placeholder, value, entry_vars):
     if placeholder in ['[DATE]','[DATE1]','[DATE2]']  and value:
         return format_date(value)
-    elif placeholder == '[REST]':
+    elif placeholder == '[SENT]':
         try:
             amount = extract_number(entry_vars.get('[AMOUNT]', StringVar()).get())
-            sent = extract_number(entry_vars.get('[SENT]', StringVar()).get())
+            sent = extract_number(entry_vars.get('[REST]', StringVar()).get())
             rest = amount - sent
             return f"{rest:,.2f} {extract_currency(entry_vars.get('[AMOUNT]', StringVar()).get())}"
         except ValueError:
@@ -455,7 +477,7 @@ def format_placeholder_value(placeholder, value, entry_vars):
 
 def open_settings_page():
     
-    global settings_window_ref
+    global settings_window_ref,keyboard_toggle_on,keyboard_toggle_off,keyboard_macros_toggle_button
     
     if settings_window_ref is not None and settings_window_ref.winfo_exists():
         settings_window_ref.lift()
@@ -482,7 +504,18 @@ def open_settings_page():
     export_button = Button(settings_window,text="Export macros 📤",font=("Arial",11),width=13,height=1, command=export_macros)
     export_button.pack(side='top',anchor=CENTER,pady=1)
     backup_button = Button(settings_window,text="Create backup ☁️",font=("Arial",11),width=13,height=1, command=create_backup)
-    backup_button.pack(side='top',anchor=CENTER,pady=10)
+    backup_button.pack(side='top',anchor=CENTER,pady=15)
+    
+    keyboard_options_frame = Frame(settings_window)
+    keyboard_options_frame.pack(side='top', anchor=CENTER, pady=1)
+    
+    keyboard_lable = Label(keyboard_options_frame,text="Keyboard macros:")
+    keyboard_lable.pack(side='left',padx=5)
+    keyboard_macros_toggle_button = Button(keyboard_options_frame,text='',bd=0,image=keyboard_toggle_off,command=keyboard_macro_mode_switch)
+    keyboard_macros_toggle_button.pack(side='left',anchor=CENTER,pady=1)
+    
+    keyboard_macros_manage_button = Button(settings_window,text='Manage keyboard macros',font=("Arial",11),command=manage_keyboard_macros)
+    keyboard_macros_manage_button.pack(side='top',anchor=CENTER,pady=10)
 
 def import_macros():
     file_path = filedialog.askopenfilename(title='Import macro file',filetypes=[("JSON file",".json")])
@@ -555,6 +588,17 @@ def monitor_clipboard():
             pyperclip.copy(combined)
         time.sleep(0.1)
         
+def stop_on_paste():
+    
+    global paste_stop_thread, clipboard_listener_thread, copy_button, multi_copy_mode
+    
+    keyboard.wait("ctrl+v")
+    multi_copy_mode = False
+    copy_button.config(image = copy_icon)
+    stop_event.set()
+    paste_stop_thread.join()
+    clipboard_listener_thread.join()
+        
 def multi_copy():
     
     global multi_copy_mode,copy_icon,copy_icon_active,copied_items,copy_button,clipboard_listener_thread,stop_event
@@ -567,12 +611,274 @@ def multi_copy():
         copied_items = []
         stop_event.clear()
         clipboard_listener_thread = threading.Thread(target=monitor_clipboard,daemon=True)
+        paste_stop_thread = threading.Thread(target=stop_on_paste,daemon=True)
         clipboard_listener_thread.start()
+        paste_stop_thread.start()
     else:
         copy_button.config(image = copy_icon)
         stop_event.set()
         clipboard_listener_thread.join()
+        
+        
+#---------------------------KEYBOARD MACROS--------------------------#
 
+def paste_keyboard_macro(key):
+    
+    global keyboard_macros
+    
+    already_coppied = pyperclip.paste()
+    pyperclip.copy(keyboard_macros[key])
+    keyboard.send('ctrl+v')
+    pyperclip.copy(already_coppied)
+
+def keyboard_macro_mode_switch():
+    
+    global keyboard_macros_mode,keyboard_macros_toggle_button,keyboard_toggle_on,keyboard_toggle_off,keyboard_macros
+    
+    keyboard_macros_mode = not keyboard_macros_mode
+    
+    keyboard_macros = load_keyboard_macros()
+        
+    if keyboard_macros_mode:
+        keyboard_macros_toggle_button.config(image = keyboard_toggle_on)
+        
+        for key in keyboard_macros:
+            keyboard.add_hotkey(key,lambda k=key: paste_keyboard_macro(k),suppress=True)
+    else:
+        keyboard_macros_toggle_button.config(image = keyboard_toggle_off)
+        
+        for key in keyboard_macros:
+            keyboard.remove_hotkey(key)
+
+def manage_keyboard_macros():
+    
+    global keyboard_macros_window_ref,keyboard_macros
+    
+    keyboard_macros = load_keyboard_macros()
+    
+    if keyboard_macros_window_ref is not None and keyboard_macros_window_ref.winfo_exists():
+        keyboard_macros_window_ref.lift()
+        keyboard_macros_window_ref.deiconify()
+        return
+    
+    keyboard_macros_window = Toplevel(window)
+    keyboard_macros_window.attributes("-topmost",True)
+    keyboard_macros_window.title("Settings")
+    keyboard_macros_window.minsize(200, 50)
+    keyboard_macros_window.wm_iconphoto(False, ImageTk.PhotoImage(Image.open('assets/psicon.png')))
+    
+    keyboard_macros_window_ref = keyboard_macros_window
+    
+    def on_close():
+        global keyboard_macros_window_ref
+        keyboard_macros_window_ref = None
+        keyboard_macros_window.destroy()
+        
+    keyboard_macros_window.protocol("WM_DELETE_WINDOW",on_close)
+    
+    if not keyboard_macros:
+        no_keyboard_macros_frame = Frame(keyboard_macros_window)
+        no_keyboard_macros_frame.pack(expand=True)
+        
+        empty_image_org = Image.open("assets/empty.png")
+        resized_empty = empty_image_org.resize((70,70),Image.LANCZOS)
+        empty_image = ImageTk.PhotoImage(resized_empty)
+        
+        empty_image_label = Label(no_keyboard_macros_frame,text='',image=empty_image)
+        empty_image_label.image = empty_image
+        empty_image_label.pack(side='top',anchor=CENTER,pady=0)
+        empty_message_label = Label(no_keyboard_macros_frame,text="No keyboard macros found")
+        empty_message_label.pack(side='top',anchor=CENTER)
+        
+        add_button = Button(no_keyboard_macros_frame,text="Add New",command=add_keyboard_macro)
+        add_button.pack(side="top",anchor=CENTER,pady=20)
+    
+    else:
+
+        eye_img = ImageTk.PhotoImage(Image.open("assets/eye.png").resize((20, 20), Image.LANCZOS))
+        edit_img = ImageTk.PhotoImage(Image.open("assets/pen.png").resize((20, 20), Image.LANCZOS))
+        delete_img = ImageTk.PhotoImage(Image.open("assets/delete.png").resize((20, 20), Image.LANCZOS))
+
+        table_frame = Frame(keyboard_macros_window)
+        table_frame.pack(padx=10, pady=10, anchor="w")
+
+        Label(table_frame, text="Key", font=("Arial", 10, "bold")).grid(row=0, column=0, padx=5, pady=5)
+        Label(table_frame, text="View").grid(row=0, column=1, padx=5, pady=5)
+        Label(table_frame, text="Edit").grid(row=0, column=2, padx=5, pady=5)
+        Label(table_frame, text="Delete").grid(row=0, column=3, padx=5, pady=5)
+
+        for idx, keyboard_macro in enumerate(keyboard_macros, start=1):
+
+            Label(table_frame, text=keyboard_macro, width=6, anchor="w").grid(row=idx, column=0, padx=0, pady=3, sticky="w")
+
+            btn_view = Button(table_frame, image=eye_img, bd=0,command=lambda k=keyboard_macro: view_keyboard_macro(k))
+            btn_view.image = eye_img
+            btn_view.grid(row=idx, column=1, padx=5, pady=3)
+
+            btn_edit = Button(table_frame, image=edit_img,bd=0, command=lambda k=keyboard_macro: edit_keyboard_macro(k))
+            btn_edit.image = edit_img
+            btn_edit.grid(row=idx, column=2, padx=5, pady=3)
+
+            btn_delete = Button(table_frame, image=delete_img,bd=0,command=lambda k=keyboard_macro:confirm_keyboard_macro_delete(k))
+            btn_delete.image = delete_img
+            btn_delete.grid(row=idx, column=3, padx=5, pady=3)
+
+        add_keyboard_macro_button = Button(keyboard_macros_window, text="+ Add New", command=add_keyboard_macro)
+        add_keyboard_macro_button.pack(pady=10)
+
+def view_keyboard_macro(key):
+    view_window = Toplevel(window)
+    view_window.attributes("-topmost",True)
+    view_window.title(f"Key {key} macro")
+    view_window.minsize(300, 200)
+    view_window.wm_iconphoto(False, ImageTk.PhotoImage(Image.open('assets/psicon.png')))
+    
+    left_frame = Frame(view_window)
+    left_frame.pack(side=LEFT,fill=BOTH,expand = True)
+
+    text = Text(left_frame, wrap=WORD)
+    text.insert(INSERT, keyboard_macros[key])
+    text.config(state=DISABLED)
+    text.pack(expand=True, fill=BOTH)
+    
+    right_frame = Frame(view_window)
+    right_frame.pack(side=RIGHT,fill=BOTH,expand=True)
+    
+def edit_keyboard_macro(key):
+    
+    global edit_keyboard_window_ref, keyboard_macros
+    
+    if edit_keyboard_window_ref is not None and edit_keyboard_window_ref.winfo_exists():
+        edit_keyboard_window_ref.lift()
+        return
+    
+    def on_close():
+        global edit_keyboard_window_ref
+        edit_keyboard_window_ref = None
+        edit_keyboard_window.destroy()
+        
+    edit_keyboard_window = Toplevel(window)
+    edit_keyboard_window.attributes("-topmost",True)
+
+    edit_keyboard_window.title(f"Edit {key} macro")
+    edit_keyboard_window.minsize(600, 400)
+    edit_keyboard_window.wm_iconphoto(False, ImageTk.PhotoImage(Image.open('assets/psicon.png')))
+    
+    edit_keyboard_window_ref = edit_keyboard_window
+    
+    edit_keyboard_window.protocol("WM_DELETE_WINDOW",on_close)
+    
+    left_frame = Frame(edit_keyboard_window)
+    left_frame.pack(side=LEFT,fill=BOTH,expand = True)
+
+    text = Text(left_frame, wrap=WORD)
+    text.insert(INSERT, keyboard_macros[key])
+    text.pack(expand=True, fill=BOTH)
+    
+    right_frame = Frame(edit_keyboard_window)
+    right_frame.pack(side=RIGHT,fill=BOTH,expand=True)
+    
+    def done():
+        if keyboard_macros[key] != text.get('1.0','end-1c'):
+            keyboard_macros[key] = text.get('1.0','end-1c')
+            with open('config/keyboard_macros.json','w',encoding='utf-8') as file:
+                json.dump(keyboard_macros,file,indent=4,ensure_ascii=False)
+        edit_keyboard_window.destroy()
+        
+    done_button = Button(right_frame,text='Done',font=("Arial bold",10),command=done)
+    done_button.pack(side=BOTTOM,anchor='se', padx=10, pady=10)
+
+def delete_keyboard_macro(key):
+    
+    global keyboard_macros
+    
+    if key in keyboard_macros:
+        del keyboard_macros[key]
+        with open('config/keyboard_macros.json','w',encoding='utf-8') as file:
+            json.dump(keyboard_macros,file,indent=4,ensure_ascii=False)
+        
+        if keyboard_macros_window_ref and keyboard_macros_window_ref.winfo_exists():
+                keyboard_macros_window_ref.destroy()
+
+        manage_keyboard_macros()
+            
+def confirm_keyboard_macro_delete(key):
+    answer = messagebox.askyesno("Confirm to delete",f"Are you sure you want to delete macro for {key}?")
+    if answer:
+        delete_keyboard_macro(key)
+
+def add_keyboard_macro():
+    
+    global add_keyboard_macro_window_ref,keyboard_macros
+    
+    key = None
+    
+    if add_keyboard_macro_window_ref is not None and add_keyboard_macro_window_ref.winfo_exists():
+        add_keyboard_macro_window_ref.lift()
+        return
+    
+    add_keyboard_macro_window = Toplevel(window)
+    add_keyboard_macro_window.attributes("-topmost",True)
+    add_keyboard_macro_window.title("Add New Macro")
+    add_keyboard_macro_window.minsize(600, 200)
+    add_keyboard_macro_window_ref = add_keyboard_macro_window
+    
+    def on_close():
+        global add_keyboard_macro_window_ref
+        add_keyboard_macro_window_ref = None
+        add_keyboard_macro_window.destroy()
+        
+    add_keyboard_macro_window.protocol("WM_DELETE_WINDOW", on_close)
+
+    key_label = Label(add_keyboard_macro_window, text="Keyboard key:")
+    key_label.grid(row=0, column=0, padx=10, pady=10)
+    
+    def keyboard_listen():
+        
+        key_entry.config(text="Waiting...")
+        
+        def wait_for_key():
+            nonlocal key
+            pressed_key = keyboard.read_key()
+            key = pressed_key.upper()
+            key_entry.config(text=key)
+            
+        threading.Thread(target=wait_for_key, daemon=True).start()
+    
+    key_frame = Frame(add_keyboard_macro_window)
+    key_frame.grid(row=0,column=1,padx=10,pady=10)
+    key_entry = Label(key_frame,text="No key added")
+    key_entry.pack(side='left')
+    key_comfirm_button = Button(key_frame,text="Add key",command= keyboard_listen)
+    key_comfirm_button.pack(side='left',padx=10)
+
+    macro_text_label = Label(add_keyboard_macro_window, text="Macro Text:")
+    macro_text_label.grid(row=1, column=0, padx=10, pady=10)
+    macro_text_entry = Text(add_keyboard_macro_window, wrap=WORD, height=10)
+    macro_text_entry.grid(row=1, column=1, padx=10, pady=10)
+    
+    def save_keyboard_macro():
+        
+        nonlocal key
+        
+        macro_text = macro_text_entry.get("1.0", "end-1c")
+        if key and macro_text != '':
+            keyboard_macros[key] = macro_text
+            with open('config/keyboard_macros.json', 'w', encoding='utf-8') as file:
+                json.dump(keyboard_macros, file, ensure_ascii=False, indent=4)
+            add_keyboard_macro_window.destroy()
+            
+            if keyboard_macros_window_ref and keyboard_macros_window_ref.winfo_exists():
+                keyboard_macros_window_ref.destroy()
+
+            manage_keyboard_macros()
+            
+    
+    save_button = Button(add_keyboard_macro_window, text="Save", command= save_keyboard_macro)
+    save_button.grid(row=2, columnspan=2, pady=10)
+    
+
+    
 #---------------------------MAIN---------------------------------#
 
 window = Tk()
@@ -588,13 +894,21 @@ add_window_ref = None
 edit_window_ref = None
 settings_window_ref = None
 search_after_id = None
+keyboard_macros_window_ref = None
+add_keyboard_macro_window_ref = None
+edit_keyboard_window_ref = None
 
 delete_mode = False
 multi_copy_mode = False
+keyboard_macros_mode = False
 copied_items = []
 stop_event = threading.Event()
 clipboard_listener_thread = None
+paste_stop_thread = None
 last_clipboard_copy = ""
+already_copied = ''
+
+keyboard_macros = []
 
 searchTerm = StringVar()
 search = Entry(window, width=30, font=8, textvariable=searchTerm)
@@ -631,5 +945,15 @@ copy_icon= PhotoImage(file='assets/copy2.png')
 copy_icon_active = PhotoImage(file='assets/copy2_active.png')
 copy_button = Button(button_frame, text="", image=copy_icon,command=multi_copy)
 copy_button.grid(row=1,column=0,sticky="se",padx=1,pady=1)
+
+keyboard_macros_toggle_button = Button()
+
+keyboard_on = Image.open("assets/on.png")
+resized_on = keyboard_on.resize((50,20),Image.LANCZOS)
+keyboard_toggle_on = ImageTk.PhotoImage(resized_on)
+
+keyboard_off = Image.open("assets/off.png")
+resized_off = keyboard_off.resize((50,20),Image.LANCZOS)
+keyboard_toggle_off = ImageTk.PhotoImage(resized_off)
 
 window.mainloop()

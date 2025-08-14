@@ -5,6 +5,7 @@ from PIL import Image, ImageTk
 import pyperclip
 import threading
 import time
+import requests
 from tkcalendar import DateEntry
 from datetime import datetime
 from datetime import timedelta
@@ -72,6 +73,15 @@ def is_transaction_number(term):
 def normalize_macro_text(text):
     return re.sub(r'X{3,10}','XXXXXXX',text)
 
+def is_bin(term):
+    pattern = re.compile(r"^/bin\d+$")
+    return bool(pattern.match(term))
+
+def extract_bin(term):
+    match = re.search(r"(\d+)", term)
+    if match:
+        return match.group(1)
+
 #--------------------------SEARCH--------------------------------------#
 
 def copy_text(text):
@@ -102,6 +112,15 @@ def searchMacros(term):
             label = Label(phone_frame, width=30, text=formatted_number, bg='lightgrey', anchor="w", justify=LEFT)
             label.pack(side=LEFT, padx=10, pady=10)
             label.bind("<Button-1>", lambda event, number=formatted_number: copy_text(number))
+        elif is_bin(term):
+            bin = extract_bin(term)
+            bin_frame = Frame(macro_frame, bg='lightgrey', bd=2, relief=RAISED)
+            bin_frame.grid(row=0, column=0, pady=2, sticky="ew")
+            bin_frame.bind("<Button-1>", lambda event, bin=bin: checkBin(bin))
+
+            label = Label(bin_frame, width=30, text="Check bin", bg='lightgrey', anchor="w", justify=LEFT)
+            label.pack(side=LEFT, padx=10, pady=10)
+            label.bind("<Button-1>", lambda event, bin=bin: checkBin(bin))
         else:
             row = 1
             for macro in macros:
@@ -511,7 +530,11 @@ def open_settings_page():
     
     keyboard_lable = Label(keyboard_options_frame,text="Keyboard macros:")
     keyboard_lable.pack(side='left',padx=5)
-    keyboard_macros_toggle_button = Button(keyboard_options_frame,text='',bd=0,image=keyboard_toggle_off,command=keyboard_macro_mode_switch)
+    
+    if keyboard_macros_mode:
+        keyboard_macros_toggle_button = Button(keyboard_options_frame,text='',bd=0,image=keyboard_toggle_on,command=keyboard_macro_mode_switch)
+    else:
+        keyboard_macros_toggle_button = Button(keyboard_options_frame,text='',bd=0,image=keyboard_toggle_off,command=keyboard_macro_mode_switch)
     keyboard_macros_toggle_button.pack(side='left',anchor=CENTER,pady=1)
     
     keyboard_macros_manage_button = Button(settings_window,text='Manage keyboard macros',font=("Arial",11),command=manage_keyboard_macros)
@@ -628,12 +651,32 @@ def paste_keyboard_macro(key):
     
     already_coppied = pyperclip.paste()
     pyperclip.copy(keyboard_macros[key])
+    time.sleep(0.05)
     keyboard.send('ctrl+v')
+    time.sleep(0.05)
     pyperclip.copy(already_coppied)
+    
+    
+def remove_all_hotkeys():
+    for hotkey_id in list(keyboard._hotkeys):
+        try:
+            keyboard.remove_hotkey(hotkey_id)
+        except KeyError:
+            pass
 
+def refresh_hotkeys():
+    
+    global keyboard_macros
+    
+    remove_all_hotkeys()
+        
+    for key in keyboard_macros:
+        keyboard.add_hotkey(key,lambda k=key: paste_keyboard_macro(k),suppress=True)
+
+    
 def keyboard_macro_mode_switch():
     
-    global keyboard_macros_mode,keyboard_macros_toggle_button,keyboard_toggle_on,keyboard_toggle_off,keyboard_macros
+    global keyboard_macros_mode,keyboard_macros_toggle_button,keyboard_toggle_on,keyboard_toggle_off,keyboard_macros,hotkeys
     
     keyboard_macros_mode = not keyboard_macros_mode
     
@@ -646,9 +689,7 @@ def keyboard_macro_mode_switch():
             keyboard.add_hotkey(key,lambda k=key: paste_keyboard_macro(k),suppress=True)
     else:
         keyboard_macros_toggle_button.config(image = keyboard_toggle_off)
-        
-        for key in keyboard_macros:
-            keyboard.remove_hotkey(key)
+        remove_all_hotkeys()
 
 def manage_keyboard_macros():
     
@@ -790,7 +831,7 @@ def edit_keyboard_macro(key):
 
 def delete_keyboard_macro(key):
     
-    global keyboard_macros
+    global keyboard_macros,hotkeys
     
     if key in keyboard_macros:
         del keyboard_macros[key]
@@ -800,6 +841,9 @@ def delete_keyboard_macro(key):
         if keyboard_macros_window_ref and keyboard_macros_window_ref.winfo_exists():
                 keyboard_macros_window_ref.destroy()
 
+        if keyboard_macros_mode:
+            refresh_hotkeys()
+        
         manage_keyboard_macros()
             
 def confirm_keyboard_macro_delete(key):
@@ -809,7 +853,7 @@ def confirm_keyboard_macro_delete(key):
 
 def add_keyboard_macro():
     
-    global add_keyboard_macro_window_ref,keyboard_macros
+    global add_keyboard_macro_window_ref,keyboard_macros, keyboard_macros_mode
     
     key = None
     
@@ -870,15 +914,45 @@ def add_keyboard_macro():
             
             if keyboard_macros_window_ref and keyboard_macros_window_ref.winfo_exists():
                 keyboard_macros_window_ref.destroy()
+                
+            if keyboard_macros_mode:
+                refresh_hotkeys()
 
             manage_keyboard_macros()
             
-    
     save_button = Button(add_keyboard_macro_window, text="Save", command= save_keyboard_macro)
     save_button.grid(row=2, columnspan=2, pady=10)
     
+#--------------------------BIN LOOKUP-----------------------------#
 
+def checkBin(bin_number):
+
+    global macro_frame,search
     
+    url = f"https://data.handyapi.com/bin/{bin_number}"
+    
+    response = requests.get(url)
+    
+    reset_macro_frame()
+    bin_frame = Frame(macro_frame, bg='lightgrey', bd=2, relief=RAISED)
+    bin_frame.grid(row=0, column=0, pady=2, sticky="ew")
+    bin_frame.bind("<Button-1>", lambda event: (reset_macro_frame(),search.delete(0, END)))
+
+    if response.ok:
+        response = response.json()
+        if response['Status'] == 'SUCCESS':
+            res = f"Type: {response['Type']}\nBrand: {response['Scheme']}\nCountry: {response['Country']['Name']}\nBank: {response['Issuer']}"
+        else:
+            res = "NOT FOUND"
+    else:
+        res = "Server error"
+        
+    label = Label(bin_frame, width=30, text=res, bg='lightgrey', anchor="w", justify=LEFT)
+    label.pack(side=LEFT, padx=10, pady=10)
+    label.bind("<Button-1>", lambda event: (reset_macro_frame(),search.delete(0, END)))
+
+
+
 #---------------------------MAIN---------------------------------#
 
 window = Tk()

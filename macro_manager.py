@@ -19,12 +19,7 @@ import json
 
 #------------------------UTILS----------------------------#
 
-countries = ["Algeria", "Argentina", "Armenia", "Azerbaijan", "Bangladesh", "Belarus", 
-             "Belize", "Bhutan", "Bolivia,", "Burundi", "Cambodia", "Cameroon", "Chad", "China", "Ecuador", 
-             "El Salvador", "Ethiopia", "Georgia", "Guatemala", "Guinea", "Guyana", "Honduras", "Hong Kong", "India", 
-             "Indonesia", "Jamaica", "Japan", "Jordan", "Kenya", "Kuwait", "Lesotho", "Liberia", "Madagascar", "Malawi", "Malaysia", 
-             "Mauritania", "Mozambique", "Nepal", "Niger", "Nigeria", "Philippines", "Qatar", "Rwanda", "Saudi Arabia", "Senegal", 
-             "Singapore", "South Africa", "Sri Lanka", "Tajikistan", "Tanzania", "Thailand", "Tunisia", "Turkey", "Uganda", "Ukraine", "Uruguay", "Vietnam", "Zambia"]
+SEARCH_DELAY = 200
 
 def load_macros(filename='macros.json'):
     if not os.path.exists(filename):
@@ -77,6 +72,15 @@ def is_bin(term):
     pattern = re.compile(r"^/bin\d+$")
     return bool(pattern.match(term))
 
+def is_country_code(term):
+    pattern = re.compile(r"^/(?:cc|country_code|countrycode|country)(\+?\d+)$")
+    return bool(pattern.match(term))
+
+def extract_country_code(term):
+    match = re.search(r"^/(?:cc|country_code|countrycode|country)(\+?\d+)$",term)
+    if match:
+        return match.group(1)
+    
 def extract_bin(term):
     match = re.search(r"(\d+)", term)
     if match:
@@ -121,6 +125,15 @@ def searchMacros(term):
             label = Label(bin_frame, width=30, text="Check bin", bg='lightgrey', anchor="w", justify=LEFT)
             label.pack(side=LEFT, padx=10, pady=10)
             label.bind("<Button-1>", lambda event, bin=bin: checkBin(bin))
+        elif is_country_code(term):
+            country_code = extract_country_code(term)
+            country_code_frame = Frame(macro_frame, bg='lightgrey', bd=2, relief=RAISED)
+            country_code_frame.grid(row=0, column=0, pady=2, sticky="ew")
+            country_code_frame.bind("<Button-1>", lambda event:(reset_macro_frame(),search.delete(0, END)))
+
+            label = Label(country_code_frame, width=30, text=findCountry(country_code), bg='lightgrey', anchor="w", justify=LEFT)
+            label.pack(side=LEFT, padx=10, pady=10)
+            label.bind("<Button-1>", lambda event:(reset_macro_frame(),search.delete(0, END)))
         else:
             row = 1
             for macro in macros:
@@ -161,7 +174,19 @@ def searchMacros(term):
         
     window.update_idletasks()  
     window.geometry('')
-    
+
+def on_search_key(event):
+
+    global search_after_id
+
+    if search_after_id is not None:
+        try:
+            window.after_cancel(search_after_id)
+        except Exception:
+            pass
+
+    search_after_id = window.after(SEARCH_DELAY, lambda: searchMacros(searchTerm.get()))
+
 def reset_macro_frame():
     global macro_frame
     if macro_frame is not None:
@@ -298,7 +323,7 @@ def view_macro(macro):
     
     edit_mode = 0
     
-    def izmeni():
+    def update():
         nonlocal edit_mode
         nonlocal text
         global searchTerm
@@ -317,7 +342,7 @@ def view_macro(macro):
             
         text.config(state=state)
     
-    edit_button = Button(right_frame,text='Edit',font=("Arial bold",10),command=izmeni)
+    edit_button = Button(right_frame,text='Edit',font=("Arial bold",10),command=update)
     edit_button.pack(side=BOTTOM,anchor='se', padx=10, pady=10)
     
     if re.search(r'XXXXXXX|\[AMOUNT\]|\[DATE\]|\[SENT\]|\[REST\]|\[COUNTRY\]|\[DATE1\]|\[DATE2\]', macros[macro]):
@@ -426,6 +451,8 @@ def edit_macro(macro):
                 bd_button = Button(right_frame,text='3BD',command=lambda:add_3_bd_days())
                 bd_button.grid(row=row+1,column=1,padx=5,pady=5)
             elif placeholder == '[COUNTRY]':
+                with open("config/countries.json", "r", encoding="utf-8") as file:
+                    countries = json.load(file)
                 entry = AutocompleteCombobox(right_frame,completevalues=countries ,textvariable=entry_vars[placeholder])
                 entry.bind("<<ComboboxSelected>>", lambda e, ph=placeholder: update_macro(text_area, macro_text, entry_vars))
                 entry.bind('<FocusOut>', lambda e, ph=placeholder: update_macro(text_area, macro_text, entry_vars))
@@ -951,7 +978,18 @@ def checkBin(bin_number):
     label.pack(side=LEFT, padx=10, pady=10)
     label.bind("<Button-1>", lambda event: (reset_macro_frame(),search.delete(0, END)))
 
+#-------------------------COUNTRY_CODE_LOOKUP------------------------------------#
 
+def findCountry(country_code):
+    key = country_code if country_code.startswith('+') else f"+{country_code}"
+
+    try:
+        with open('config/country_codes.json', 'r', encoding='utf-8') as file:
+            countries = json.load(file)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return "NOT FOUND"
+
+    return countries.get(key, "NOT FOUND")
 
 #---------------------------MAIN---------------------------------#
 
@@ -986,7 +1024,7 @@ keyboard_macros = []
 
 searchTerm = StringVar()
 search = Entry(window, width=30, font=8, textvariable=searchTerm)
-search.bind('<KeyRelease>',lambda event: searchMacros(searchTerm.get()))
+search.bind('<KeyRelease>',on_search_key)
 search.grid(row=0, column=0)
 
 macro_frame = Frame(window)
@@ -1015,8 +1053,8 @@ delete_button.grid(row=1,column=2,sticky="se",padx=1,pady=1)
 settings_button = Button(button_frame,text="⚙️",font=("Arial",11),width=2,height=1,command=open_settings_page)
 settings_button.grid(row=1,column=1,sticky="se",padx=1,pady=1)
 
-copy_icon= PhotoImage(file='assets/copy2.png')
-copy_icon_active = PhotoImage(file='assets/copy2_active.png')
+copy_icon= PhotoImage(file='assets/copy1.png')
+copy_icon_active = PhotoImage(file='assets/copy1_active.png')
 copy_button = Button(button_frame, text="", image=copy_icon,command=multi_copy)
 copy_button.grid(row=1,column=0,sticky="se",padx=1,pady=1)
 

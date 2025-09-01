@@ -127,13 +127,14 @@ def searchMacros(term):
             label.bind("<Button-1>", lambda event, bin=bin: checkBin(bin))
         elif is_country_code(term):
             country_code = extract_country_code(term)
+            country = findCountry(country_code)
             country_code_frame = Frame(macro_frame, bg='lightgrey', bd=2, relief=RAISED)
             country_code_frame.grid(row=0, column=0, pady=2, sticky="ew")
-            country_code_frame.bind("<Button-1>", lambda event:(reset_macro_frame(),search.delete(0, END)))
+            country_code_frame.bind("<Button-1>", lambda event:copy_text(country))
 
-            label = Label(country_code_frame, width=30, text=findCountry(country_code), bg='lightgrey', anchor="w", justify=LEFT)
+            label = Label(country_code_frame, width=30, text=country, bg='lightgrey', anchor="w", justify=LEFT)
             label.pack(side=LEFT, padx=10, pady=10)
-            label.bind("<Button-1>", lambda event:(reset_macro_frame(),search.delete(0, END)))
+            label.bind("<Button-1>", lambda event:copy_text(country))
         else:
             row = 1
             for macro in macros:
@@ -639,15 +640,16 @@ def monitor_clipboard():
         time.sleep(0.1)
         
 def stop_on_paste():
-    
-    global paste_stop_thread, clipboard_listener_thread, copy_button, multi_copy_mode
-    
+    global clipboard_listener_thread, copy_button, multi_copy_mode
+
     keyboard.wait("ctrl+v")
     multi_copy_mode = False
-    copy_button.config(image = copy_icon)
+    copy_button.config(image=copy_icon)
     stop_event.set()
-    paste_stop_thread.join()
-    clipboard_listener_thread.join()
+
+    if clipboard_listener_thread and clipboard_listener_thread.is_alive():
+        clipboard_listener_thread.join()
+
         
 def multi_copy():
     
@@ -1053,8 +1055,8 @@ delete_button.grid(row=1,column=2,sticky="se",padx=1,pady=1)
 settings_button = Button(button_frame,text="⚙️",font=("Arial",11),width=2,height=1,command=open_settings_page)
 settings_button.grid(row=1,column=1,sticky="se",padx=1,pady=1)
 
-copy_icon= PhotoImage(file='assets/copy1.png')
-copy_icon_active = PhotoImage(file='assets/copy1_active.png')
+copy_icon= PhotoImage(file='assets/copy.png')
+copy_icon_active = PhotoImage(file='assets/copy_active.png')
 copy_button = Button(button_frame, text="", image=copy_icon,command=multi_copy)
 copy_button.grid(row=1,column=0,sticky="se",padx=1,pady=1)
 

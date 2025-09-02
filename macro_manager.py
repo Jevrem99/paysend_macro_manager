@@ -109,7 +109,7 @@ def searchMacros(term):
     if term and len(term) > 1:
         if is_phone_number(term):
             formatted_number = format_phone_number(term)
-            phone_frame = Frame(macro_frame, bg='lightgrey', bd=2, relief=RAISED)
+            phone_frame = Frame(macro_frame, bg='lightgrey', bd=2, relief=GROOVE)
             phone_frame.grid(row=0, column=0, pady=2, sticky="ew")
             phone_frame.bind("<Button-1>", lambda event, number=formatted_number: copy_text(number))
 
@@ -118,7 +118,7 @@ def searchMacros(term):
             label.bind("<Button-1>", lambda event, number=formatted_number: copy_text(number))
         elif is_bin(term):
             bin = extract_bin(term)
-            bin_frame = Frame(macro_frame, bg='lightgrey', bd=2, relief=RAISED)
+            bin_frame = Frame(macro_frame, bg='lightgrey', bd=2, relief=GROOVE)
             bin_frame.grid(row=0, column=0, pady=2, sticky="ew")
             bin_frame.bind("<Button-1>", lambda event, bin=bin: checkBin(bin))
 
@@ -128,7 +128,7 @@ def searchMacros(term):
         elif is_country_code(term):
             country_code = extract_country_code(term)
             country = findCountry(country_code)
-            country_code_frame = Frame(macro_frame, bg='lightgrey', bd=2, relief=RAISED)
+            country_code_frame = Frame(macro_frame, bg='lightgrey', bd=2, relief=GROOVE)
             country_code_frame.grid(row=0, column=0, pady=2, sticky="ew")
             country_code_frame.bind("<Button-1>", lambda event:copy_text(country))
 
@@ -143,7 +143,7 @@ def searchMacros(term):
                     
                     tileColor = 'red' if delete_mode else 'black'
                     
-                    macro_frame_inner = Frame(macro_frame, bg='lightgrey', bd=2, relief=RAISED)
+                    macro_frame_inner = Frame(macro_frame, bg='gray85', bd=2, relief=GROOVE)
                     macro_frame_inner.grid(row=row, column=0, pady=2, sticky="ew")
                     
                     action = confirm_delete if delete_mode else copy_macro
@@ -151,19 +151,19 @@ def searchMacros(term):
                     macro_frame_inner.bind("<Button-1>",lambda event,m=macro:action(m))
                     macro_frame_inner.bind("<Button-3>",lambda event,m=macro:do_popup(event,m))
                     
-                    label = Label(macro_frame_inner, width=30, text=macro, bg='lightgrey', anchor="w", justify=LEFT,fg=tileColor)
+                    label = Label(macro_frame_inner, width=30, text=macro, bg='gray85', anchor="w", justify=LEFT,fg=tileColor)
                     label.pack(side=LEFT, padx=10, pady=10)
                     label.bind("<Button-1>", lambda event, m=macro: action(m))
                     label.bind("<Button-3>",lambda event,m=macro:do_popup(event,m))
                     
                     view_icon = PhotoImage(file='assets/eye.png')
-                    view_button = Button(macro_frame_inner, text="", image=view_icon, compound=LEFT, command=lambda m=macro: view_macro(m))
+                    view_button = Button(macro_frame_inner, image=view_icon, relief=GROOVE, command=lambda m=macro: view_macro(m))
                     view_button.image = view_icon
                     view_button.pack(side=RIGHT, padx=10, pady=10)
 
                     if re.search(r'XXXXXXX|\[AMOUNT\]|\[DATE\]|\[SENT\]|\[REST\]|\[COUNTRY\]|\[DATE1\]|\[DATE2\]', macros[macro]):
-                        edit_icon = PhotoImage(file='assets/edit.png')
-                        edit_button = Button(macro_frame_inner, text="", image=edit_icon, compound=LEFT, command=lambda m=macro: edit_macro(m))
+                        edit_icon = ImageTk.PhotoImage(Image.open("assets/edit.png").resize((32,32), Image.LANCZOS))
+                        edit_button = Button(macro_frame_inner, image=edit_icon,relief=GROOVE, command=lambda m=macro: edit_macro(m))
                         edit_button.image = edit_icon
                         edit_button.pack(side=RIGHT, padx=10, pady=10)
                     
@@ -219,18 +219,19 @@ def add_macro():
         
     add_window.protocol("WM_DELETE_WINDOW", on_close)
 
-    macro_name_label = Label(add_window, text="Macro Name:")
-    macro_name_label.grid(row=0, column=0, padx=10, pady=10)
-    macro_name_entry = Entry(add_window)
-    macro_name_entry.grid(row=0, column=1, padx=10, pady=10)
+    macro_name_label = Label(add_window, text="Macro Name:",font=('Arial',10))
+    macro_name_label.grid(row=0, column=0, padx=10, pady=10, sticky='e')
 
-    macro_text_label = Label(add_window, text="Macro Text:")
+    macro_name_entry = Entry(add_window,width=25,font=('Arial',12))
+    macro_name_entry.grid(row=0, column=1, padx=10, pady=10, sticky='w')
+
+    macro_text_label = Label(add_window, text="Macro Text:",font=('Arial',10))
     macro_text_label.grid(row=1, column=0, padx=10, pady=10)
     macro_text_entry = Text(add_window, wrap=WORD, height=10)
     macro_text_entry.grid(row=1, column=1, padx=10, pady=10)
     
     info_icon = PhotoImage(file='assets/info.png')
-    info_label = Label(add_window, text="", image=info_icon)
+    info_label = Label(add_window, image=info_icon)
     info_label.image = info_icon
     info_label.grid(row=2,column=0,padx=10,pady=10)
     
@@ -250,7 +251,7 @@ def add_macro():
             window.update_idletasks()
             window.geometry('')
             
-    save_button = Button(add_window, text="Save", command=save_macro)
+    save_button = Button(add_window, text="Save", relief=GROOVE,command=save_macro)
     save_button.grid(row=2, columnspan=2, pady=10)
 
 infoWindow = None
@@ -261,12 +262,12 @@ def displayInfo(event):
     infoText = (
         "Available placeholders:\n\n"
         "• XXXXXXX,            — free text inputs\n"
-        "• [COUNTRY]           — list of non-sending countries\n"
+        "• [COUNTRY]           — list of countries\n"
         "• [DATE]              — date picker\n"
-        "• [DATE1], [DATE2]    — date range (with 3BD option)\n"
-        "• [AMOUNT], [SENT]    — numeric inputs\n"
-        "• [REST]              — auto-calculated as [AMOUNT] - [SENT]\n\n"
-        "*Note: [REST] is automatically calculated and does not require input."
+        "• [DATE1], [DATE2]    — 2 date pickers (with 3BD option)\n"
+        "• [AMOUNT], [REST]    — numeric inputs\n"
+        "• [SENT]              — auto-calculated as [AMOUNT] - [REST]\n\n"
+        "*Note: [SENT] is automatically calculated and does not require input."
     )
     infoWindow = Toplevel(event.widget)
     infoWindow.wm_overrideredirect(True)
@@ -280,7 +281,7 @@ def hideInfo(event):
         infoWindow = None
 
 def confirm_delete(macro):
-    answer = messagebox.askyesno("Confirm to delete",f"Are you sure you want to delete macro:\n\n{macro}?")
+    answer = messagebox.askyesno("Confirm to delete",f"Are you sure you want to delete macro:\n\n{macro}?",default='no')
     if answer:
         delete_macro(macro)
     
@@ -294,13 +295,13 @@ def delete_macro(macro):
         searchMacros(searchTerm.get())
         
 def delete_mode_change():
-    global delete_mode
+    global delete_mode,del_img,del_active_img
     
     if(not delete_mode):
-        delete_button.config(fg='red')
+        delete_button.config(image=del_active_img)
         delete_mode = True
     else:
-        delete_button.config(fg='grey')
+        delete_button.config(image=del_img)
         delete_mode = False
     searchMacros(searchTerm.get())
     
@@ -343,7 +344,7 @@ def view_macro(macro):
             
         text.config(state=state)
     
-    edit_button = Button(right_frame,text='Edit',font=("Arial bold",10),command=update)
+    edit_button = Button(right_frame,text="Edit",relief=GROOVE,font=("Arial bold",10),command=update)
     edit_button.pack(side=BOTTOM,anchor='se', padx=10, pady=10)
     
     if re.search(r'XXXXXXX|\[AMOUNT\]|\[DATE\]|\[SENT\]|\[REST\]|\[COUNTRY\]|\[DATE1\]|\[DATE2\]', macros[macro]):
@@ -449,7 +450,7 @@ def edit_macro(macro):
                 entry = DateEntry(right_frame, textvariable=entry_vars[placeholder], date_pattern='dd/MM/yyyy')
             elif placeholder == '[DATE2]':
                 entry = DateEntry(right_frame, textvariable=entry_vars[placeholder], date_pattern='dd/MM/yyyy')
-                bd_button = Button(right_frame,text='3BD',command=lambda:add_3_bd_days())
+                bd_button = Button(right_frame,text='Calculate 3BD',relief=GROOVE,command=lambda:add_3_bd_days())
                 bd_button.grid(row=row+1,column=1,padx=5,pady=5)
             elif placeholder == '[COUNTRY]':
                 with open("config/countries.json", "r", encoding="utf-8") as file:
@@ -495,7 +496,7 @@ def edit_macro(macro):
         entry_vars['[DATE2]'].set(day)
         update_macro(text_area, macro_text, entry_vars)
 
-    done_button = Button(right_frame, text="Done", command=apply_changes)
+    done_button = Button(right_frame, text="Done",relief=GROOVE,command=apply_changes)
     done_button.grid(row=row+2, columnspan=2, pady=10)
 
 def update_macro(text_widget, macro_text, entry_vars):
@@ -524,7 +525,7 @@ def format_placeholder_value(placeholder, value, entry_vars):
 
 def open_settings_page():
     
-    global settings_window_ref,keyboard_toggle_on,keyboard_toggle_off,keyboard_macros_toggle_button
+    global settings_window_ref,keyboard_toggle_on,keyboard_toggle_off,keyboard_macros_toggle_button,import_image,export_image,backup_image
     
     if settings_window_ref is not None and settings_window_ref.winfo_exists():
         settings_window_ref.lift()
@@ -546,13 +547,17 @@ def open_settings_page():
         
     settings_window.protocol("WM_DELETE_WINDOW",on_close)
 
-    import_button = Button(settings_window,text="Import macros 📥",font=("Arial",11),width=13,height=1,command=import_macros)
+    import_button = Button(settings_window,text="Import macros ",image=import_image,compound='right',font=("Arial",11),relief=GROOVE,command=import_macros)
     import_button.pack(side='top',anchor=CENTER,pady=10)
-    export_button = Button(settings_window,text="Export macros 📤",font=("Arial",11),width=13,height=1, command=export_macros)
+    export_button = Button(settings_window,text="Export macros ",image=export_image,compound='right',font=("Arial",11),relief=GROOVE, command=export_macros)
     export_button.pack(side='top',anchor=CENTER,pady=1)
-    backup_button = Button(settings_window,text="Create backup ☁️",font=("Arial",11),width=13,height=1, command=create_backup)
+    backup_button = Button(settings_window,text="Create backup ",image=backup_image,compound='right',font=("Arial",11),relief=GROOVE,command=create_backup)
     backup_button.pack(side='top',anchor=CENTER,pady=15)
     
+    import_button.image = import_image
+    export_button.image = export_image
+    backup_button.image = backup_image
+
     keyboard_options_frame = Frame(settings_window)
     keyboard_options_frame.pack(side='top', anchor=CENTER, pady=1)
     
@@ -565,7 +570,7 @@ def open_settings_page():
         keyboard_macros_toggle_button = Button(keyboard_options_frame,text='',bd=0,image=keyboard_toggle_off,command=keyboard_macro_mode_switch)
     keyboard_macros_toggle_button.pack(side='left',anchor=CENTER,pady=1)
     
-    keyboard_macros_manage_button = Button(settings_window,text='Manage keyboard macros',font=("Arial",11),command=manage_keyboard_macros)
+    keyboard_macros_manage_button = Button(settings_window,text='Manage keyboard macros',font=("Arial",11),relief=GROOVE,command=manage_keyboard_macros)
     keyboard_macros_manage_button.pack(side='top',anchor=CENTER,pady=10)
 
 def import_macros():
@@ -722,7 +727,7 @@ def keyboard_macro_mode_switch():
 
 def manage_keyboard_macros():
     
-    global keyboard_macros_window_ref,keyboard_macros
+    global keyboard_macros_window_ref,keyboard_macros,eye_img,edit_img,delete_img
     
     keyboard_macros = load_keyboard_macros()
     
@@ -760,14 +765,10 @@ def manage_keyboard_macros():
         empty_message_label = Label(no_keyboard_macros_frame,text="No keyboard macros found")
         empty_message_label.pack(side='top',anchor=CENTER)
         
-        add_button = Button(no_keyboard_macros_frame,text="Add New",command=add_keyboard_macro)
+        add_button = Button(no_keyboard_macros_frame,text="Add New",relief=GROOVE,command=add_keyboard_macro)
         add_button.pack(side="top",anchor=CENTER,pady=20)
     
     else:
-
-        eye_img = ImageTk.PhotoImage(Image.open("assets/eye.png").resize((20, 20), Image.LANCZOS))
-        edit_img = ImageTk.PhotoImage(Image.open("assets/pen.png").resize((20, 20), Image.LANCZOS))
-        delete_img = ImageTk.PhotoImage(Image.open("assets/delete.png").resize((20, 20), Image.LANCZOS))
 
         table_frame = Frame(keyboard_macros_window)
         table_frame.pack(padx=10, pady=10, anchor="w")
@@ -793,7 +794,7 @@ def manage_keyboard_macros():
             btn_delete.image = delete_img
             btn_delete.grid(row=idx, column=3, padx=5, pady=3)
 
-        add_keyboard_macro_button = Button(keyboard_macros_window, text="+ Add New", command=add_keyboard_macro)
+        add_keyboard_macro_button = Button(keyboard_macros_window, text="+ Add New", relief=GROOVE, command=add_keyboard_macro)
         add_keyboard_macro_button.pack(pady=10)
 
 def view_keyboard_macro(key):
@@ -922,7 +923,7 @@ def add_keyboard_macro():
     key_frame.grid(row=0,column=1,padx=10,pady=10)
     key_entry = Label(key_frame,text="No key added")
     key_entry.pack(side='left')
-    key_comfirm_button = Button(key_frame,text="Add key",command= keyboard_listen)
+    key_comfirm_button = Button(key_frame,text="Add key",relief=GROOVE, command= keyboard_listen)
     key_comfirm_button.pack(side='left',padx=10)
 
     macro_text_label = Label(add_keyboard_macro_window, text="Macro Text:")
@@ -949,7 +950,7 @@ def add_keyboard_macro():
 
             manage_keyboard_macros()
             
-    save_button = Button(add_keyboard_macro_window, text="Save", command= save_keyboard_macro)
+    save_button = Button(add_keyboard_macro_window, text="Save", relief=GROOVE,command= save_keyboard_macro)
     save_button.grid(row=2, columnspan=2, pady=10)
     
 #--------------------------BIN LOOKUP-----------------------------#
@@ -997,7 +998,7 @@ def findCountry(country_code):
 
 window = Tk()
 window.title("Paysend macro manager")
-window.minsize(274,50)
+window.minsize(230,50)
 window.attributes("-topmost", True)
 
 window.wm_iconphoto(False, ImageTk.PhotoImage(Image.open("assets/psicon.png")))
@@ -1025,7 +1026,7 @@ already_copied = ''
 keyboard_macros = []
 
 searchTerm = StringVar()
-search = Entry(window, width=30, font=8, textvariable=searchTerm)
+search = Entry(window, width=22, font=8,textvariable=searchTerm)
 search.bind('<KeyRelease>',on_search_key)
 search.grid(row=0, column=0)
 
@@ -1033,12 +1034,20 @@ macro_frame = Frame(window)
 macro_frame.grid(row=1, column=0)
 macro_frame.grid_propagate(True)
 
+eye_img = ImageTk.PhotoImage(Image.open("assets/eye.png").resize((20, 20), Image.LANCZOS))
+edit_img = ImageTk.PhotoImage(Image.open("assets/pen.png").resize((20, 20), Image.LANCZOS))
+delete_img = ImageTk.PhotoImage(Image.open("assets/delete_active.png").resize((20, 20), Image.LANCZOS))
+del_img = PhotoImage(file="assets/delete.png")
+del_active_img = PhotoImage(file="assets/delete_active.png")
+
+add_img = PhotoImage(file="assets/add.png")
+
 right_click_menu = Menu(window,tearoff=0)
-right_click_menu.add_command(label="View  👁️",command=lambda:view_macro(selected_macro))
+right_click_menu.add_command(label="View  ",image=eye_img,compound='right',command=lambda:view_macro(selected_macro))
 right_click_menu.add_separator()
-right_click_menu.add_command(label="Edit  ✎",command=lambda:right_click_edit(selected_macro))
+right_click_menu.add_command(label="Edit ",image=edit_img,compound='right',command=lambda:right_click_edit(selected_macro))
 right_click_menu.add_separator()
-right_click_menu.add_command(label="Delete ⛔",command=lambda:confirm_delete(selected_macro))
+right_click_menu.add_command(label="Delete ",image=delete_img,compound='right',command=lambda:confirm_delete(selected_macro))
 
 
 button_frame = Frame(window)
@@ -1046,19 +1055,24 @@ button_frame.grid(row=2,column=0, sticky='ew')
 button_frame.grid_columnconfigure(0, weight=1)
 button_frame.grid_propagate(True)
 
-plus_button = Button(button_frame, text="+", font=("Arial", 11), width=2, height=1, command=add_macro)
+plus_button = Button(button_frame,relief=GROOVE, image=add_img, command=add_macro)
 plus_button.grid(row=1, column=3, sticky="se", padx=1, pady=1)
 
-delete_button = Button(button_frame,text="del",font=("Arial",11),width=2,height=1,fg='grey',command=delete_mode_change)
+delete_button = Button(button_frame,relief=GROOVE,image=del_img,fg='grey',command=delete_mode_change)
 delete_button.grid(row=1,column=2,sticky="se",padx=1,pady=1)
 
-settings_button = Button(button_frame,text="⚙️",font=("Arial",11),width=2,height=1,command=open_settings_page)
+settings_image = PhotoImage(file="assets/settings.png")
+settings_button = Button(button_frame,image=settings_image,relief=GROOVE,command=open_settings_page)
 settings_button.grid(row=1,column=1,sticky="se",padx=1,pady=1)
 
 copy_icon= PhotoImage(file='assets/copy.png')
 copy_icon_active = PhotoImage(file='assets/copy_active.png')
-copy_button = Button(button_frame, text="", image=copy_icon,command=multi_copy)
+copy_button = Button(button_frame,relief=GROOVE, image=copy_icon,command=multi_copy)
 copy_button.grid(row=1,column=0,sticky="se",padx=1,pady=1)
+
+import_image = ImageTk.PhotoImage(Image.open("assets/import.png").resize((19,19),Image.LANCZOS))
+export_image = ImageTk.PhotoImage(Image.open("assets/export.png").resize((19,19),Image.LANCZOS))
+backup_image = ImageTk.PhotoImage(Image.open("assets/backup.png").resize((20,20),Image.LANCZOS))
 
 keyboard_macros_toggle_button = Button()
 

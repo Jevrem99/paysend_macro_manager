@@ -88,6 +88,9 @@ config/
 * `[DATE]`, `[DATE1]`, `[DATE2]` — date inputs
 * `[COUNTRY]` — country autocomplete
 
+# User Manual
+Detailed user guide: [UserManual.pdf](./UserManual.pdf)
+
 ---
 
 ## 6. Extending the Project
